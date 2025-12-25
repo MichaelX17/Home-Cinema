@@ -25,8 +25,8 @@ interface MovieCardProps {
 
 export default function MovieCard({ movie }: MovieCardProps) {
   return (
-    <Link href={`/movies/${movie.folderName}`} className="group">
-      <Card className="overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-lg">
+    <Link href={`/movies/${movie.folderName}`} className="group block">
+      <Card className="overflow-hidden transition-all duration-300 ease-in-out bg-card border-border hover:border-primary/50 rounded-lg shadow-lg hover:shadow-2xl hover:shadow-red-500/20 hover:-translate-y-1">
         <CardHeader className="p-0">
           <div className="relative aspect-[2/3]">
             {movie.cover ? (
@@ -34,29 +34,29 @@ export default function MovieCard({ movie }: MovieCardProps) {
                 src={movie.cover}
                 alt={movie.title}
                 fill
-                className="object-cover"
+                className="object-cover transition-transform duration-300 group-hover:scale-105"
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                 priority={false}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-secondary text-muted-foreground">
-                🎬
+                <span className="text-4xl">🎬</span>
               </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
             {movie.duration && (
-              <div className="absolute top-2 right-2 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-medium text-white">
+              <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-medium text-foreground/80">
                 {movie.duration}
               </div>
             )}
           </div>
         </CardHeader>
-        <CardContent className="p-3">
-          <h3 className="font-semibold text-base truncate group-hover:text-primary">
+        <CardContent className="p-4">
+          <h3 className="font-bold text-lg truncate transition-colors duration-300 group-hover:text-primary">
             {movie.title}
           </h3>
           {movie.year && (
-            <p className="text-muted-foreground text-sm">{movie.year}</p>
+            <p className="text-muted-foreground text-sm mt-1">{movie.year}</p>
           )}
         </CardContent>
       </Card>

@@ -9,7 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Film } from "lucide-react";
 
 // Interfaz para la película
 interface Movie {
@@ -93,34 +94,45 @@ export default function Home() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <header className="flex flex-col md:flex-row justify-between items-center mb-8">
+      <header className="flex flex-col md:flex-row justify-between items-center mb-12 pb-6 border-b border-border">
         <div className="text-center md:text-left mb-4 md:mb-0">
-          <h1 className="text-4xl font-bold">Home Cinema</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-5xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-800">
+            Home Cinema
+          </h1>
+          <p className="text-muted-foreground mt-2">
             Your personal movie collection. {movies.length} titles available.
           </p>
         </div>
-        <div className="w-full md:w-1/3">
-          <Input type="search" placeholder="Search movies..." />
+        <div className="w-full md:max-w-xs relative">
+          <Input type="search" placeholder="Search movies..." className="pr-10" />
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            <Film className="h-5 w-5 text-muted-foreground" />
+          </div>
         </div>
       </header>
 
       <main>
         {movies.length === 0 ? (
           <div className="text-center py-20">
-            <div className="text-6xl mb-4">🎥</div>
-            <h2 className="text-2xl font-semibold mb-2">No movies yet</h2>
-            <p className="text-muted-foreground mb-6">
-              Add movies to the{" "}
-              <code className="bg-muted px-2 py-1 rounded">
+            <div className="mx-auto w-fit p-4 bg-secondary rounded-full mb-6">
+              <Film className="h-16 w-16 text-primary" />
+            </div>
+            <h2 className="text-3xl font-bold mb-2">No movies found</h2>
+            <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+              To get started, add some movies to the{" "}
+              <code className="bg-muted px-2 py-1 rounded-md font-mono text-sm">
                 public/movies/
               </code>{" "}
-              folder.
+              directory on your server.
             </p>
-            <Card className="max-w-md mx-auto text-left p-6">
-              <h3 className="font-semibold mb-2">Example structure:</h3>
-              <pre className="text-sm text-muted-foreground">
-                {`movies/
+            <Card className="max-w-lg mx-auto text-left bg-card border-border shadow-lg">
+              <CardHeader>
+                <h3 className="font-semibold text-lg text-primary">Example File Structure</h3>
+              </CardHeader>
+              <CardContent>
+                <pre className="text-sm text-muted-foreground bg-black/20 p-4 rounded-md overflow-x-auto">
+                  <code>
+{`public/movies/
 ├── the-godfather/
 │   ├── cover.jpg
 │   ├── info.json
@@ -128,15 +140,17 @@ export default function Home() {
 └── interstellar/
     ├── poster.webp
     └── movie.mp4`}
-              </pre>
+                  </code>
+                </pre>
+              </CardContent>
             </Card>
           </div>
         ) : (
           <>
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-bold">Catalog</h2>
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+              <h2 className="text-3xl font-bold tracking-tight">Catalog</h2>
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Sort by:</span>
+                <span className="text-muted-foreground text-sm">Sort by:</span>
                 <Select>
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Date Added" />
@@ -150,7 +164,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-10">
               {movies.map((movie) => (
                 <MovieCard key={movie.id} movie={movie} />
               ))}
@@ -159,11 +173,11 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="border-t mt-12 py-8">
+      <footer className="border-t border-border mt-16 pt-8">
         <div className="container mx-auto px-4 text-center text-muted-foreground text-sm">
           <p>
-            Personal Home Cinema • For domestic use only •{" "}
-            {new Date().getFullYear()}
+            <span className="font-bold text-primary">Home Cinema</span> • For
+            Personal Use Only • {new Date().getFullYear()}
           </p>
         </div>
       </footer>

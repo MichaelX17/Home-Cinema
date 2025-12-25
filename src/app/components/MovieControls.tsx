@@ -2,6 +2,7 @@
 
 import { FC } from "react";
 import { Button } from "@/components/ui/button";
+import { RefreshCcw, ExternalLink, Share2 } from "lucide-react";
 
 interface MovieControlsProps {
   movie: {
@@ -12,8 +13,8 @@ interface MovieControlsProps {
 
 const MovieControls: FC<MovieControlsProps> = ({ movie }) => {
   return (
-    <div>
-      <h2 className="text-2xl font-semibold mb-4">Controls</h2>
+    <div className="p-4 rounded-lg bg-card border border-border mt-8">
+      <h2 className="text-xl font-bold mb-4 text-primary">Playback Options</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <Button
           variant="outline"
@@ -22,7 +23,7 @@ const MovieControls: FC<MovieControlsProps> = ({ movie }) => {
             window.location.reload();
           }}
         >
-          <span className="mr-2">🔄</span>
+          <RefreshCcw size={16} className="mr-2" />
           Reset Progress
         </Button>
         <Button
@@ -33,17 +34,17 @@ const MovieControls: FC<MovieControlsProps> = ({ movie }) => {
             }
           }}
         >
-          <span className="mr-2">↗️</span>
+          <ExternalLink size={16} className="mr-2" />
           Open in New Tab
         </Button>
         <Button
           variant="outline"
           onClick={() => {
             navigator.clipboard.writeText(window.location.href);
-            // alert("Link copied to clipboard!");
+            // Consider adding a toast notification for better UX
           }}
         >
-          <span className="mr-2">🔗</span>
+          <Share2 size={16} className="mr-2" />
           Copy Link
         </Button>
       </div>
