@@ -26,7 +26,7 @@ interface MovieCardProps {
 export default function MovieCard({ movie }: MovieCardProps) {
   return (
     <Link href={`/movies/${movie.folderName}`} className="group block">
-      <Card className="overflow-hidden transition-all duration-300 ease-in-out bg-card border-border hover:border-primary/50 rounded-lg shadow-lg hover:shadow-2xl hover:shadow-red-500/20 hover:-translate-y-1">
+      <Card className="overflow-hidden transition-all duration-300 ease-in-out bg-card border-border hover:border-primary/50 rounded-lg shadow-lg hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-1">
         <CardHeader className="p-0">
           <div className="relative aspect-[2/3]">
             {movie.cover ? (

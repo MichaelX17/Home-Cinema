@@ -12,7 +12,6 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Film } from "lucide-react";
 
-// Interfaz para la película
 interface Movie {
   id: string;
   title: string;
@@ -24,27 +23,20 @@ interface Movie {
   folderName: string;
 }
 
-// Función para leer las películas
 function getMovies(): Movie[] {
   try {
     const moviesDir = path.join(process.cwd(), "public/movies");
+    if (!fs.existsSync(moviesDir)) return [];
 
-    if (!fs.existsSync(moviesDir)) {
-      return [];
-    }
-
-    const movieFolders = fs.readdirSync(moviesDir);
-
-    return movieFolders
-      .filter((folder) => {
-        const folderPath = path.join(moviesDir, folder);
-        return fs.statSync(folderPath).isDirectory();
-      })
+    return fs
+      .readdirSync(moviesDir)
+      .filter((folder) =>
+        fs.statSync(path.join(moviesDir, folder)).isDirectory()
+      )
       .map((folder) => {
         const folderPath = path.join(moviesDir, folder);
         const files = fs.readdirSync(folderPath);
 
-        // Buscar archivos automáticamente
         const coverFile = files.find(
           (f) =>
             f.toLowerCase().includes("cover") ||
@@ -59,32 +51,29 @@ function getMovies(): Movie[] {
             /\.(mp4|mkv|avi|mov|webm)$/i.test(f)
         );
 
-        // Leer metadata
-        let metadata = {};
+        let metadata: any = {};
         const jsonFile = files.find((f) => f.endsWith(".json"));
         if (jsonFile) {
           try {
-            const jsonPath = path.join(folderPath, jsonFile);
-            metadata = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
-          } catch (error) {
-            console.error(`Error leyendo JSON de ${folder}:`, error);
-          }
+            metadata = JSON.parse(
+              fs.readFileSync(path.join(folderPath, jsonFile), "utf-8")
+            );
+          } catch {}
         }
 
         return {
           id: folder,
           folderName: folder,
-          title: (metadata as any).title || folder.replace(/-/g, " "),
-          year: (metadata as any).year,
-          duration: (metadata as any).duration,
-          description: (metadata as any).description,
+          title: metadata.title || folder.replace(/-/g, " "),
+          year: metadata.year,
+          duration: metadata.duration,
+          description: metadata.description,
           cover: coverFile ? `/movies/${folder}/${coverFile}` : "",
           video: videoFile ? `/movies/${folder}/${videoFile}` : "",
         };
       })
-      .filter((movie) => movie.video); // Solo películas con video
-  } catch (error) {
-    console.error("Error leyendo películas:", error);
+      .filter((movie) => movie.video);
+  } catch {
     return [];
   }
 }
@@ -94,17 +83,23 @@ export default function Home() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Header */}
       <header className="flex flex-col md:flex-row justify-between items-center mb-12 pb-6 border-b border-border">
         <div className="text-center md:text-left mb-4 md:mb-0">
-          <h1 className="text-5xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-800">
+          <h1 className="text-5xl font-extrabold tracking-tighter text-primary">
             Home Cinema
           </h1>
           <p className="text-muted-foreground mt-2">
             Your personal movie collection. {movies.length} titles available.
           </p>
         </div>
+
         <div className="w-full md:max-w-xs relative">
-          <Input type="search" placeholder="Search movies..." className="pr-10" />
+          <Input
+            type="search"
+            placeholder="Search movies..."
+            className="pr-10"
+          />
           <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
             <Film className="h-5 w-5 text-muted-foreground" />
           </div>
@@ -117,7 +112,9 @@ export default function Home() {
             <div className="mx-auto w-fit p-4 bg-secondary rounded-full mb-6">
               <Film className="h-16 w-16 text-primary" />
             </div>
+
             <h2 className="text-3xl font-bold mb-2">No movies found</h2>
+
             <p className="text-muted-foreground mb-8 max-w-md mx-auto">
               To get started, add some movies to the{" "}
               <code className="bg-muted px-2 py-1 rounded-md font-mono text-sm">
@@ -125,12 +122,15 @@ export default function Home() {
               </code>{" "}
               directory on your server.
             </p>
-            <Card className="max-w-lg mx-auto text-left bg-card border-border shadow-lg">
+
+            <Card className="max-w-lg mx-auto text-left bg-card border-border">
               <CardHeader>
-                <h3 className="font-semibold text-lg text-primary">Example File Structure</h3>
+                <h3 className="font-semibold text-lg text-primary">
+                  Example File Structure
+                </h3>
               </CardHeader>
               <CardContent>
-                <pre className="text-sm text-muted-foreground bg-black/20 p-4 rounded-md overflow-x-auto">
+                <pre className="text-sm text-muted-foreground bg-muted p-4 rounded-md overflow-x-auto">
                   <code>
 {`public/movies/
 ├── the-godfather/
@@ -149,6 +149,7 @@ export default function Home() {
           <>
             <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
               <h2 className="text-3xl font-bold tracking-tight">Catalog</h2>
+
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground text-sm">Sort by:</span>
                 <Select>
@@ -174,7 +175,7 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-border mt-16 pt-8">
-        <div className="container mx-auto px-4 text-center text-muted-foreground text-sm">
+        <div className="text-center text-muted-foreground text-sm">
           <p>
             <span className="font-bold text-primary">Home Cinema</span> • For
             Personal Use Only • {new Date().getFullYear()}

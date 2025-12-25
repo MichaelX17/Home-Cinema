@@ -48,7 +48,7 @@ export default function VideoPlayer({
     <div className="w-full relative">
       <AspectRatio
         ratio={16 / 9}
-        className="bg-black rounded-lg overflow-hidden border border-border shadow-2xl shadow-red-500/10"
+        className="bg-black rounded-lg overflow-hidden border border-border shadow-2xl shadow-blue-500/10"
       >
         <video
           ref={videoRef}
