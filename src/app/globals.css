@@ -54,14 +54,7 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* Base */
-body {
-  font-family: var(--font-sans);
-  margin: 0;
-  overflow-x: hidden;
-}
-
-/* Scrollbar */
+/* Scrollbar personalizada */
 ::-webkit-scrollbar {
   width: 10px;
 }
@@ -79,11 +72,17 @@ body {
   background: #3a3a3a;
 }
 
-/* Dark theme por defecto */
+/* Dark theme por defecto con gradiente Rojo-Verde */
 :root {
   --radius: 0.625rem;
 
-  --background: oklch(0.13 0 0);
+  /* Gradiente rojo a verde para prueba */
+  --background: linear-gradient(
+    135deg,
+    rgb(25, 23, 23) 0%,
+    rgb(3, 45, 56) 100%
+  );
+
   --foreground: oklch(0.96 0 0);
 
   --card: oklch(0.18 0 0);
@@ -177,6 +176,11 @@ body {
   }
 
   body {
-    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    margin: 0;
+    overflow-x: hidden;
+    background: var(--background);
+    color: var(--foreground);
+    background-attachment: fixed;
   }
 }
