@@ -1,16 +1,9 @@
 import fs from "fs";
 import path from "path";
-import MovieCard from "./components/MovieCard";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Film } from "lucide-react";
+import MovieCatalog from "./components/MovieCatalog";
 
 interface Movie {
   id: string;
@@ -146,31 +139,7 @@ export default function Home() {
             </Card>
           </div>
         ) : (
-          <>
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-              <h2 className="text-3xl font-bold tracking-tight">Catalog</h2>
-
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground text-sm">Sort by:</span>
-                <Select>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Date Added" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="date">Date Added</SelectItem>
-                    <SelectItem value="az">A-Z</SelectItem>
-                    <SelectItem value="year">Year</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-10">
-              {movies.map((movie) => (
-                <MovieCard key={movie.id} movie={movie} />
-              ))}
-            </div>
-          </>
+          <MovieCatalog movies={movies} />
         )}
       </main>
 
