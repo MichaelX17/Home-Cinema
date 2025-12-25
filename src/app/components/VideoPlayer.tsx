@@ -1,69 +1,164 @@
 "use client";
 
-import { useRef, useEffect } from "react";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { useEffect, useRef, useState } from "react";
 
 interface VideoPlayerProps {
   src: string;
   poster?: string;
   title: string;
-  autoPlay?: boolean;
 }
 
-export default function VideoPlayer({
-  src,
-  poster,
-  title,
-  autoPlay = true,
-}: VideoPlayerProps) {
+export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  useEffect(() => {
-    // Cargar progreso guardado
-    const savedTime = localStorage.getItem(`progress_${title}`);
-    if (videoRef.current && savedTime) {
-      videoRef.current.currentTime = parseFloat(savedTime);
-    }
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
-    // Guardar progreso cada 5 segundos
-    const video = videoRef.current;
-    const saveProgress = () => {
-      if (video && video.currentTime > 0) {
-        localStorage.setItem(`progress_${title}`, video.currentTime.toString());
-      }
+  /* ===== Plataforma ===== */
+  useEffect(() => {
+    const check = () =>
+      setIsDesktop(window.matchMedia("(min-width: 768px)").matches);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  /* ===== Persistencia ===== */
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+
+    const t = localStorage.getItem(`progress_${title}`);
+    const vol = localStorage.getItem(`volume_${title}`);
+
+    if (t) v.currentTime = Number(t);
+    if (vol) {
+      v.volume = Number(vol);
+      setVolume(Number(vol));
+    }
+  }, [title]);
+
+  /* ===== Eventos ===== */
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+
+    const onTime = () => {
+      setCurrentTime(v.currentTime);
+      localStorage.setItem(`progress_${title}`, v.currentTime.toString());
     };
 
-    const interval = setInterval(saveProgress, 5000);
+    const onLoaded = () => setDuration(v.duration);
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
 
-    // Limpiar intervalo y guardar progreso al desmontar
+    v.addEventListener("timeupdate", onTime);
+    v.addEventListener("loadedmetadata", onLoaded);
+    v.addEventListener("play", onPlay);
+    v.addEventListener("pause", onPause);
+
     return () => {
-      clearInterval(interval);
-      if (video) {
-        saveProgress();
-      }
+      v.removeEventListener("timeupdate", onTime);
+      v.removeEventListener("loadedmetadata", onLoaded);
+      v.removeEventListener("play", onPlay);
+      v.removeEventListener("pause", onPause);
     };
   }, [title]);
 
+  /* ===== Acciones ===== */
+  const togglePlay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    isPlaying ? v.pause() : v.play();
+  };
+
+  const skip = (s: number) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime += s;
+    }
+  };
+
+  const fullscreen = () => {
+    const v = videoRef.current as any;
+    if (!v) return;
+
+    // iOS Safari
+    if (v.webkitEnterFullscreen) {
+      v.webkitEnterFullscreen();
+      return;
+    }
+
+    // Android / Desktop
+    if (v.requestFullscreen) {
+      v.requestFullscreen();
+    }
+  };
+
   return (
-    <div className="w-full relative">
-      <AspectRatio
-        ratio={16 / 9}
-        className="bg-black rounded-lg overflow-hidden border border-border shadow-2xl shadow-blue-500/10"
-      >
-        <video
-          ref={videoRef}
-          controls
-          autoPlay={autoPlay}
-          className="w-full h-full"
-          poster={poster}
-          playsInline
-          key={src} // Forzar recarga del video si la fuente cambia
+    <div className="relative w-full bg-black rounded-lg overflow-hidden">
+      <video
+        ref={videoRef}
+        src={src}
+        poster={poster}
+        preload="metadata"
+        playsInline
+        controls={!isDesktop}
+        className="w-full bg-black"
+      />
+
+      {/* Overlay Play (solo desktop) */}
+      {isDesktop && !isPlaying && (
+        <button
+          onClick={togglePlay}
+          className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-4xl"
         >
-          <source src={src} type="video/mp4" />
-          Tu navegador no soporta video HTML5.
-        </video>
-        <div className="absolute inset-0 pointer-events-none rounded-lg ring-1 ring-inset ring-white/10" />
-      </AspectRatio>
+          ▶
+        </button>
+      )}
+
+      {/* Controles custom SOLO desktop */}
+      {isDesktop && (
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent text-white">
+          <input
+            type="range"
+            min={0}
+            max={duration}
+            value={currentTime}
+            onChange={(e) =>
+              (videoRef.current!.currentTime = Number(e.target.value))
+            }
+            className="w-full"
+          />
+
+          <div className="flex items-center justify-between mt-2">
+            <div className="flex gap-2">
+              <button onClick={togglePlay}>⏯</button>
+              <button onClick={() => skip(-5)}>⏪5s</button>
+              <button onClick={() => skip(5)}>5s⏩</button>
+            </div>
+
+            <div className="flex gap-2 items-center">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={volume}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setVolume(v);
+                  videoRef.current!.volume = v;
+                  localStorage.setItem(`volume_${title}`, v.toString());
+                }}
+              />
+              <button onClick={fullscreen}>⛶</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
