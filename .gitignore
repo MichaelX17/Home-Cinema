@@ -41,10 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 # ============ HOME CINEMA - PELÍCULAS ============
-# Ignorar todo el contenido de la carpeta movies, pero mantener la estructura
-/public/movies/**
-!/public/movies/
-!/public/movies/*/.gitkeep
 
 # OPCIÓN ALTERNATIVA - Más específica (recomendada):
 # Ignorar archivos multimedia y datos, pero permitir estructura
