@@ -110,9 +110,7 @@ export default function MoviePage({ params }: { params: { slug: string } }) {
         <div className="mb-8">
           <VideoPlayer
             src={movie.video}
-            poster={movie.cover}
             title={movie.title}
-            autoPlay={true}
           />
         </div>
 

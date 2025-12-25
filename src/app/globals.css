@@ -170,6 +170,15 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* Pinter in Icons */
+
+.icon-interactive {
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

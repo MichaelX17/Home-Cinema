@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { Pointer } from "lucide-react";
 
 interface VideoPlayerProps {
   src: string;
@@ -10,12 +12,16 @@ interface VideoPlayerProps {
 
 export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const [isDesktop, setIsDesktop] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [volume, setVolume] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  const progress = duration ? (currentTime / duration) * 100 : 0;
 
   /* ===== Plataforma ===== */
   useEffect(() => {
@@ -36,12 +42,13 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
 
     if (t) v.currentTime = Number(t);
     if (vol) {
-      v.volume = Number(vol);
-      setVolume(Number(vol));
+      const volNum = Number(vol);
+      v.volume = volNum;
+      setVolume(volNum);
     }
   }, [title]);
 
-  /* ===== Eventos ===== */
+  /* ===== Eventos video ===== */
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -51,22 +58,61 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
       localStorage.setItem(`progress_${title}`, v.currentTime.toString());
     };
 
-    const onLoaded = () => setDuration(v.duration);
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
-
     v.addEventListener("timeupdate", onTime);
-    v.addEventListener("loadedmetadata", onLoaded);
-    v.addEventListener("play", onPlay);
-    v.addEventListener("pause", onPause);
+    v.addEventListener("loadedmetadata", () => setDuration(v.duration));
+    v.addEventListener("play", () => setIsPlaying(true));
+    v.addEventListener("pause", () => setIsPlaying(false));
 
     return () => {
       v.removeEventListener("timeupdate", onTime);
-      v.removeEventListener("loadedmetadata", onLoaded);
-      v.removeEventListener("play", onPlay);
-      v.removeEventListener("pause", onPause);
     };
   }, [title]);
+
+  /* ===== Fullscreen ===== */
+  useEffect(() => {
+    const onChange = () => {
+      const fs = !!document.fullscreenElement;
+      setIsFullscreen(fs);
+      document.body.style.overflow = fs ? "hidden" : "";
+    };
+
+    document.addEventListener("fullscreenchange", onChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  /* ===== Teclado ===== */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isDesktop) return;
+      if (!videoRef.current) return;
+
+      switch (e.code) {
+        case "Space":
+          e.preventDefault();
+          togglePlay();
+          break;
+        case "ArrowLeft":
+          skip(-5);
+          break;
+        case "ArrowRight":
+          skip(5);
+          break;
+        case "KeyF":
+          fullscreen();
+          break;
+        case "ArrowUp":
+          changeVolume(0.05);
+          break;
+        case "ArrowDown":
+          changeVolume(-0.05);
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isDesktop, isPlaying, volume]);
 
   /* ===== Acciones ===== */
   const togglePlay = () => {
@@ -75,30 +121,47 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
     isPlaying ? v.pause() : v.play();
   };
 
-  const skip = (s: number) => {
+  const skip = (seconds: number) => {
     if (videoRef.current) {
-      videoRef.current.currentTime += s;
+      videoRef.current.currentTime += seconds;
     }
   };
 
-  const fullscreen = () => {
-    const v = videoRef.current as any;
-    if (!v) return;
+  const changeVolume = (delta: number) => {
+    if (!videoRef.current) return;
+    const newVol = Math.min(1, Math.max(0, volume + delta));
+    setVolume(newVol);
+    videoRef.current.volume = newVol;
+    localStorage.setItem(`volume_${title}`, newVol.toString());
+  };
 
-    // iOS Safari
-    if (v.webkitEnterFullscreen) {
-      v.webkitEnterFullscreen();
+  const fullscreen = () => {
+    const video = videoRef.current as any;
+    const container = containerRef.current as any;
+    if (!video || !container) return;
+
+    if (video.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen();
       return;
     }
 
-    // Android / Desktop
-    if (v.requestFullscreen) {
-      v.requestFullscreen();
+    if (!document.fullscreenElement) {
+      container.requestFullscreen();
+    } else {
+      document.exitFullscreen();
     }
   };
 
   return (
-    <div className="relative w-full bg-black rounded-lg overflow-hidden">
+    <div
+      ref={containerRef}
+      tabIndex={0}
+      className={`
+        group relative bg-black overflow-hidden outline-none
+        ${isFullscreen ? "w-screen h-screen rounded-none" : "w-full rounded-lg"}
+      `}
+    >
+      {/* VIDEO */}
       <video
         ref={videoRef}
         src={src}
@@ -106,55 +169,117 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
         preload="metadata"
         playsInline
         controls={!isDesktop}
-        className="w-full bg-black"
+        className={`
+          bg-black
+          ${isFullscreen ? "w-full h-full object-contain" : "w-full"}
+        `}
       />
 
-      {/* Overlay Play (solo desktop) */}
+      {/* OVERLAY PLAY */}
       {isDesktop && !isPlaying && (
         <button
           onClick={togglePlay}
-          className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-4xl"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 text-white text-6xl opacity-0 group-hover:opacity-100 transition-opacity"
         >
           ▶
         </button>
       )}
 
-      {/* Controles custom SOLO desktop */}
+      {/* CONTROLES DESKTOP */}
       {isDesktop && (
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent text-white">
-          <input
-            type="range"
-            min={0}
-            max={duration}
-            value={currentTime}
-            onChange={(e) =>
-              (videoRef.current!.currentTime = Number(e.target.value))
-            }
-            className="w-full"
-          />
+        <div className="pointer-events-none absolute inset-0 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-          <div className="flex items-center justify-between mt-2">
-            <div className="flex gap-2">
-              <button onClick={togglePlay}>⏯</button>
-              <button onClick={() => skip(-5)}>⏪5s</button>
-              <button onClick={() => skip(5)}>5s⏩</button>
-            </div>
+          <div className="pointer-events-auto relative z-20 px-6 pb-6 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* PROGRESS */}
+            <input
+              type="range"
+              min={0}
+              max={duration}
+              value={currentTime}
+              onChange={(e) =>
+                (videoRef.current!.currentTime = Number(e.target.value))
+              }
+              style={{
+                background: `linear-gradient(
+                  to right,
+                  #dc2626 ${progress}%,
+                  rgba(255,255,255,0.3) ${progress}%
+                )`,
+              }}
+              className="
+                w-full h-1 appearance-none cursor-pointer rounded-full
+                [&::-webkit-slider-thumb]:appearance-none
+                [&::-webkit-slider-thumb]:w-3
+                [&::-webkit-slider-thumb]:h-3
+                [&::-webkit-slider-thumb]:rounded-full
+                [&::-webkit-slider-thumb]:bg-red-600
+                [&::-webkit-slider-thumb]:opacity-0
+                hover:[&::-webkit-slider-thumb]:opacity-100
+              "
+            />
 
-            <div className="flex gap-2 items-center">
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={volume}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setVolume(v);
-                  videoRef.current!.volume = v;
-                  localStorage.setItem(`volume_${title}`, v.toString());
-                }}
-              />
-              <button onClick={fullscreen}>⛶</button>
+            {/* CONTROLES */}
+            <div
+              className={`
+                mt-4 flex items-center justify-between text-white
+                ${isFullscreen ? "text-2xl" : "text-xl"}
+              `}
+            >
+              <div className="flex items-center gap-6">
+                <button onClick={togglePlay} className="hover:scale-110 transition">
+                  {isPlaying ? "❚❚" : "▶"}
+                </button>
+
+                <button
+                  onClick={() => skip(-5)}
+                  className="hover:scale-110 transition icon-interactive"
+                >
+                  <Image
+                    src="/icons/minus-5-seconds.png"
+                    alt="Retroceder 5 segundos"
+                    width={24}
+                    height={24}
+                  />
+                </button>
+
+                <button
+                  onClick={() => skip(5)}
+                  className="hover:scale-110 transition icon-interactive"
+                >
+                  <Image
+                    src="/icons/plus-5-seconds.png"
+                    alt="Avanzar 5 segundos"
+                    width={24}
+                    height={24}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={volume}
+                  onChange={(e) => changeVolume(Number(e.target.value) - volume)}
+                  className="
+                    icon-interactive
+                    w-24 h-1 rounded-full appearance-none
+                    bg-white/30
+                    [&::-webkit-slider-thumb]:appearance-none
+                    [&::-webkit-slider-thumb]:w-3
+                    [&::-webkit-slider-thumb]:h-3
+                    [&::-webkit-slider-thumb]:rounded-full
+                    [&::-webkit-slider-thumb]:bg-white
+                  "
+                />
+
+                <button onClick={fullscreen} className="hover:scale-110 transition icon-interactive">
+                  {isFullscreen ? "🡼" : "⛶"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
