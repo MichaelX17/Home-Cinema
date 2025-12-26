@@ -1,14 +1,15 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
-import { Play, Tv, Film } from "lucide-react";
+import { Play } from "lucide-react";
 
 interface MediaItem {
   id: string;
   title: string;
   year?: string;
-  duration?: string;
   cover: string;
+  folderName: string;
   type: "movie" | "series";
 }
 
@@ -18,72 +19,45 @@ interface MovieCardProps {
 
 export default function MovieCard({ item }: MovieCardProps) {
   return (
-    <Link href={`/movies/${item.id}`}>
-      <Card className="group overflow-hidden bg-card border-border hover:border-primary transition-all duration-300 hover:shadow-lg">
-        <div className="relative aspect-[2/3] overflow-hidden">
+    <Link href={`/movies/${item.folderName}`}>
+      <div className="group relative bg-card rounded-xl overflow-hidden transition-all duration-300 hover:scale-[1.04] hover:ring-2 hover:ring-primary hover:shadow-[0_0_35px_rgba(80,120,255,0.45)] cursor-pointer">
+        {/* Imagen de portada */}
+        <div className="relative aspect-[2/3] w-full">
           {item.cover ? (
             <Image
               src={item.cover}
               alt={item.title}
               fill
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 16vw"
             />
           ) : (
-            <div className="w-full h-full bg-secondary flex items-center justify-center text-6xl text-muted-foreground">
-              🎬
+            <div className="w-full h-full bg-secondary flex items-center justify-center">
+              <span className="text-muted-foreground">No image</span>
             </div>
           )}
-          
-          {/* Overlay with play button */}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition-colors duration-300 flex items-center justify-center">
-            <div className="opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
-              <div className="bg-primary/90 text-primary-foreground rounded-full p-4">
-                <Play className="h-8 w-8" />
-              </div>
+
+          {/* Overlay gradiente */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+          {/* Icono de play animado */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 scale-75 group-hover:scale-100">
+            <div className="bg-white/90 p-4 rounded-full shadow-lg">
+              <Play className="h-8 w-8 text-black" fill="black" />
             </div>
           </div>
-          
-          {/* Type badge */}
-          <div className="absolute top-2 left-2">
-            <div className={`px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1 ${
-              item.type === "movie" 
-                ? "bg-blue-500/90 text-white" 
-                : "bg-purple-500/90 text-white"
-            }`}>
-              {item.type === "movie" ? (
-                <>
-                  <Film className="h-3 w-3" />
-                  Movie
-                </>
-              ) : (
-                <>
-                  <Tv className="h-3 w-3" />
-                  Series
-                </>
-              )}
-            </div>
+
+          {/* Información (título y año) */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <h3 className="text-white font-bold text-lg line-clamp-1">
+              {item.title}
+            </h3>
+            {item.year && (
+              <p className="text-muted-foreground text-sm">{item.year}</p>
+            )}
           </div>
         </div>
-
-        <CardContent className="p-4">
-          <h3 className="font-semibold text-lg truncate mb-1 group-hover:text-primary transition-colors">
-            {item.title}
-          </h3>
-          <div className="flex justify-between items-center text-sm text-muted-foreground">
-            <span>{item.year || "Unknown"}</span>
-            {item.duration && item.type === "movie" && (
-              <span>{item.duration}</span>
-            )}
-            {item.type === "series" && (
-              <span className="flex items-center gap-1">
-                <Tv className="h-3 w-3" />
-                Series
-              </span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      </div>
     </Link>
   );
 }
