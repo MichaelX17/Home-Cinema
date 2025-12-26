@@ -1,92 +1,90 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import MovieCard from "./MovieCard";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Film, Tv } from "lucide-react";
 
-interface Movie {
+interface MediaItem {
   id: string;
   title: string;
   year?: string;
   duration?: string;
   description?: string;
   cover: string;
-  video: string;
+  video?: string;
   folderName: string;
+  type: "movie" | "series";
 }
 
-type SortMode = "az" | "za" | "newest" | "oldest";
+interface MovieCatalogProps {
+  mediaItems: MediaItem[];
+}
 
-export default function MovieCatalog({ movies }: { movies: Movie[] }) {
-  const [sortMode, setSortMode] = useState<SortMode>("az");
+export default function MovieCatalog({ mediaItems }: MovieCatalogProps) {
+  const [filter, setFilter] = useState<"all" | "movies" | "series">("all");
 
-  const sortedMovies = useMemo(() => {
-    const list = [...movies];
-
-    switch (sortMode) {
-      case "az":
-        return list.sort((a, b) =>
-          a.title.localeCompare(b.title, "es", { sensitivity: "base" })
-        );
-
-      case "za":
-        return list.sort((a, b) =>
-          b.title.localeCompare(a.title, "es", { sensitivity: "base" })
-        );
-
-      case "newest":
-        return list.sort(
-          (a, b) => Number(b.year || 0) - Number(a.year || 0)
-        );
-
-      case "oldest":
-        return list.sort(
-          (a, b) => Number(a.year || 0) - Number(b.year || 0)
-        );
-
-      default:
-        return list;
-    }
-  }, [movies, sortMode]);
+  const filteredItems = mediaItems.filter((item) => {
+    if (filter === "movies") return item.type === "movie";
+    if (filter === "series") return item.type === "series";
+    return true;
+  });
 
   return (
-    <>
-      {/* Toolbar */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <h2 className="text-3xl font-bold tracking-tight">Catalog</h2>
-
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-sm">Sort by:</span>
-
-          <Select
-            value={sortMode}
-            onValueChange={(v) => setSortMode(v as SortMode)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="az">A–Z</SelectItem>
-              <SelectItem value="za">Z–A</SelectItem>
-              <SelectItem value="newest">Newest</SelectItem>
-              <SelectItem value="oldest">Oldest</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+    <div>
+      {/* Filter buttons */}
+      <div className="flex gap-2 mb-8">
+        <button
+          onClick={() => setFilter("all")}
+          className={`px-4 py-2 rounded-full flex items-center gap-2 transition-colors ${
+            filter === "all"
+              ? "bg-primary text-primary-foreground"
+              : "bg-secondary hover:bg-secondary/80"
+          }`}
+        >
+          All Media
+        </button>
+        <button
+          onClick={() => setFilter("movies")}
+          className={`px-4 py-2 rounded-full flex items-center gap-2 transition-colors ${
+            filter === "movies"
+              ? "bg-primary text-primary-foreground"
+              : "bg-secondary hover:bg-secondary/80"
+          }`}
+        >
+          <Film className="h-4 w-4" />
+          Movies
+        </button>
+        <button
+          onClick={() => setFilter("series")}
+          className={`px-4 py-2 rounded-full flex items-center gap-2 transition-colors ${
+            filter === "series"
+              ? "bg-primary text-primary-foreground"
+              : "bg-secondary hover:bg-secondary/80"
+          }`}
+        >
+          <Tv className="h-4 w-4" />
+          Series
+        </button>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-10">
-        {sortedMovies.map((movie) => (
-          <MovieCard key={movie.id} movie={movie} />
+      {/* Media grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        {filteredItems.map((item) => (
+          <MovieCard key={item.id} item={item} />
         ))}
       </div>
-    </>
+
+      {filteredItems.length === 0 && (
+        <div className="text-center py-12">
+          <div className="mx-auto w-fit p-4 bg-secondary rounded-full mb-4">
+            <Tv className="h-12 w-12 text-muted-foreground" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">No {filter === "all" ? "media" : filter} found</h3>
+          <p className="text-muted-foreground">
+            Try changing your filter or add more content.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

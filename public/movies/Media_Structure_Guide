@@ -1,0 +1,86 @@
+Home Cinema - Media Structure Guide
+
+**Folder Structure**
+
+For Movies:
+	public/movies/
+└── movie-folder-name/          # Use lowercase with hyphens (e.g., "the-godfather")
+    ├── cover.jpg               # Cover image (jpg, png, webp, jpeg)
+    ├── info.json               # Movie metadata (required)
+    └── video.mp4               # Main video file (mp4, mkv, avi, mov, webm)
+    
+    
+For Series:
+	public/movies/
+└── series-folder-name/         # Use lowercase with hyphens (e.g., "breaking-bad")
+    ├── cover.jpg               # Series cover image
+    ├── info.json               # Series metadata (required)
+    ├── season01/               # Season folder (must contain "season" in name)
+    │   ├── episode01.mp4       # Episode files
+    │   ├── episode02.mp4
+    │   └── episode03.mp4
+    ├── season02/               # Additional seasons
+    │   ├── episode01.mp4
+    │   └── episode02.mp4
+    └── season03/               # More seasons as needed
+        └── episode01.mp4
+        
+        
+**File Naming Rules**
+• Folder names: Use lowercase with hyphens (e.g., the-matrix, breaking-bad)
+• Cover images: Can be named cover.jpg, poster.jpg, cover.png, etc.
+• Video files: Any name with supported extensions (.mp4, .mkv, .avi, .mov, .webm)
+• Season folders: Must contain "season" in the name (e.g., season01, season-1, season1)
+• Episode files: Can be any name with video extensions
+
+
+**info.json Specification**
+
+For Movies:
+{
+  "title": "The Matrix",
+  "description": "A computer hacker learns from mysterious rebels about the true nature of his reality.",
+  "year": "1999",
+  "duration": "2h 16min",
+  "genre": ["Action", "Sci-Fi"],
+  "director": "Lana & Lilly Wachowski",
+  "actors": ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"],
+  "rating": 8.7,
+  "type": "movie"
+}
+
+For Series:
+{
+  "title": "Breaking Bad",
+  "description": "A high school chemistry teacher diagnosed with cancer turns to manufacturing drugs.",
+  "year": "2008-2013",
+  "genre": ["Drama", "Crime", "Thriller"],
+  "director": "Vince Gilligan",
+  "actors": ["Bryan Cranston", "Aaron Paul", "Anna Gunn"],
+  "rating": 9.5,
+  "type": "serie"
+}
+
+
+*Field Definitions*
+Field		Required	Type	Description
+title		Yes		String	Media title
+description	No		String	Synopsis or description
+year		No		String	Release year (e.g., "1999")
+duration	No		String	Runtime (e.g., "2h 16min") - Movies only
+genre		No		Array	List of genres
+director	No		String	Director name
+actors		No		Array	List of main actors
+rating		No		Number	Rating out of 10 (e.g., 8.5)
+type		Yes		String	"movie" or "serie"
+
+
+**Important Notes**
+
+• The info.json file is required for both movies and series.
+• Cover image is recommended but optional (will display placeholder if missing).
+• Movies must have a video file in the main folder.
+• Series do NOT need video files in the main folder, only in season subfolders.
+• Season folders must contain "season" in their name (case-insensitive).
+• Video files are automatically detected by extension (.mp4, .mkv, .avi, .mov, .webm).
+• JSON fields are case-sensitive - use lowercase field names as shown.
