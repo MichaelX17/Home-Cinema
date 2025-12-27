@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Pointer } from "lucide-react";
 
 interface VideoPlayerProps {
   src: string;
@@ -20,6 +19,8 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
   const [volume, setVolume] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [clickTimer, setClickTimer] = useState<NodeJS.Timeout | null>(null);
+  const [showPlayPauseIcon, setShowPlayPauseIcon] = useState(false);
 
   const progress = duration ? (currentTime / duration) * 100 : 0;
 
@@ -152,6 +153,38 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
     }
   };
 
+  // Nuevo: Manejar clic y doble clic
+  const handleVideoClick = () => {
+    if (isDesktop) {
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+        setClickTimer(null);
+        // Doble clic: pantalla completa
+        fullscreen();
+      } else {
+        // Primer clic: inicia temporizador para doble clic
+        const timer = setTimeout(() => {
+          // Clic simple: play/pause
+          togglePlay();
+          // Mostrar icono temporal
+          setShowPlayPauseIcon(true);
+          setTimeout(() => setShowPlayPauseIcon(false), 500);
+          setClickTimer(null);
+        }, 300); // 300ms para detectar doble clic
+        setClickTimer(timer);
+      }
+    }
+  };
+
+  // Para el overlay de play (solo cuando está pausado)
+  const handleOverlayClick = () => {
+    if (isDesktop && !isPlaying) {
+      togglePlay();
+      setShowPlayPauseIcon(true);
+      setTimeout(() => setShowPlayPauseIcon(false), 500);
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -161,7 +194,7 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
         ${isFullscreen ? "w-screen h-screen rounded-none" : "w-full rounded-lg"}
       `}
     >
-      {/* VIDEO */}
+      {/* VIDEO - Añadido onClick para toggle play/pause y doble clic para pantalla completa */}
       <video
         ref={videoRef}
         src={src}
@@ -169,20 +202,27 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
         preload="metadata"
         playsInline
         controls={!isDesktop}
+        onClick={handleVideoClick}
         className={`
-          bg-black
-          ${isFullscreen ? "w-full h-full object-contain" : "w-full"}
+          bg-black cursor-pointer w-full h-full
+          ${isFullscreen ? "object-contain" : ""}
         `}
       />
 
-      {/* OVERLAY PLAY */}
+      {/* OVERLAY PLAY - Solo aparece cuando está pausado, ahora con icono personalizado */}
       {isDesktop && !isPlaying && (
-        <button
-          onClick={togglePlay}
-          className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 text-white text-6xl opacity-0 group-hover:opacity-100 transition-opacity"
+        <div
+          onClick={handleOverlayClick}
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
         >
-          ▶
-        </button>
+          <Image
+            src="/icons/play.png"
+            alt="Play"
+            width={80}
+            height={80}
+            className="w-20 h-20"
+          />
+        </div>
       )}
 
       {/* CONTROLES DESKTOP */}
@@ -198,7 +238,7 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
               max={duration}
               value={currentTime}
               onChange={(e) =>
-                (videoRef.current!.currentTime = Number(e.target.value))
+                videoRef.current && (videoRef.current.currentTime = Number(e.target.value))
               }
               style={{
                 background: `linear-gradient(
@@ -219,7 +259,7 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
               "
             />
 
-            {/* CONTROLES */}
+            {/* CONTROLES - Ahora con iconos personalizados */}
             <div
               className={`
                 mt-4 flex items-center justify-between text-white
@@ -227,8 +267,27 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
               `}
             >
               <div className="flex items-center gap-6">
-                <button onClick={togglePlay} className="hover:scale-110 transition">
-                  {isPlaying ? "❚❚" : "▶"}
+                <button
+                  onClick={togglePlay}
+                  className="hover:scale-110 transition flex items-center justify-center w-10 h-10 icon-interactive"
+                >
+                  {isPlaying ? (
+                    <Image
+                      src="/icons/pause_icon.png"
+                      alt="Pause"
+                      width={24}
+                      height={24}
+                      className="w-6 h-6"
+                    />
+                  ) : (
+                    <Image
+                      src="/icons/play_icon.png"
+                      alt="Play"
+                      width={24}
+                      height={24}
+                      className="w-6 h-6"
+                    />
+                  )}
                 </button>
 
                 <button
@@ -264,20 +323,44 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
                   step={0.01}
                   value={volume}
                   onChange={(e) => changeVolume(Number(e.target.value) - volume)}
+                  style={{
+                    background: `linear-gradient(
+                    to right,
+                    white 0%,
+                    white ${volume * 100}%,
+                    rgba(255,255,255,0.3) ${volume * 100}%,
+                    rgba(255,255,255,0.3) 100%
+                  )`,
+                  }}
                   className="
-                    icon-interactive
-                    w-24 h-1 rounded-full appearance-none
-                    bg-white/30
-                    [&::-webkit-slider-thumb]:appearance-none
-                    [&::-webkit-slider-thumb]:w-3
-                    [&::-webkit-slider-thumb]:h-3
-                    [&::-webkit-slider-thumb]:rounded-full
-                    [&::-webkit-slider-thumb]:bg-white
-                  "
+                  icon-interactive
+                  w-24 h-1.5 rounded-full appearance-none
+                  [&::-webkit-slider-thumb]:appearance-none
+                  [&::-webkit-slider-thumb]:w-4
+                  [&::-webkit-slider-thumb]:h-4
+                  [&::-webkit-slider-thumb]:rounded-full
+                  [&::-webkit-slider-thumb]:bg-white
+                "
                 />
 
-                <button onClick={fullscreen} className="hover:scale-110 transition icon-interactive">
-                  {isFullscreen ? "🡼" : "⛶"}
+                <button onClick={fullscreen} className="hover:scale-110 transition icon-interactive flex items-center justify-center w-10 h-10">
+                  {isFullscreen ? (
+                    <Image
+                      src="/icons/fullscreen_out_icon.png"
+                      alt="Exit fullscreen"
+                      width={24}
+                      height={24}
+                      className="w-6 h-6"
+                    />
+                  ) : (
+                    <Image
+                      src="/icons/fullscreen_in_icon.png"
+                      alt="Enter fullscreen"
+                      width={24}
+                      height={24}
+                      className="w-6 h-6"
+                    />
+                  )}
                 </button>
               </div>
             </div>

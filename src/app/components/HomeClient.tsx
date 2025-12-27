@@ -90,20 +90,20 @@ export default function HomeClient({
             <div className="flex gap-3">
               <button 
                 onClick={() => setFilter("all")}
-                className={`px-5 py-2.5 rounded-full flex items-center gap-2 transition-all duration-300 font-medium ${
+                className={`px-5 py-2.5 rounded-full flex items-center gap-2 transition-all duration-300 font-medium icon-interactive ${
                   filter === "all"
-                    ? "bg-primary text-white shadow-[0_0_18px_rgba(255,255,255,0.6)] hover:shadow-[0_0_25px_rgba(255,255,255,0.8)]"
-                    : "bg-secondary/40 backdrop-blur-sm text-muted-foreground hover:text-white border border-primary/60 hover:border-primary/80 hover:bg-secondary/60"
+                    ? "bg-primary text-white hover:shadow-[0_0_25px_rgba(59,130,246,0.8)]"
+                    : "bg-secondary/40 backdrop-blur-sm text-muted-foreground hover:text-white border border-primary/60 hover:border-primary/80 hover:bg-primary hover:shadow-[0_0_25px_rgba(59,130,246,0.8)]"
                 }`}
               >
                 All Media
               </button>
               <button 
                 onClick={() => setFilter("movies")}
-                className={`px-5 py-2.5 rounded-full flex items-center gap-2 transition-all duration-300 font-medium ${
+                className={`px-5 py-2.5 rounded-full flex items-center gap-2 transition-all duration-300 font-medium icon-interactive ${
                   filter === "movies"
-                    ? "bg-primary text-white shadow-[0_0_18px_rgba(255,255,255,0.6)] hover:shadow-[0_0_25px_rgba(255,255,255,0.8)]"
-                    : "bg-secondary/40 backdrop-blur-sm text-muted-foreground hover:text-white border border-primary/60 hover:border-primary/80 hover:bg-secondary/60"
+                    ? "bg-primary text-white hover:shadow-[0_0_25px_rgba(59,130,246,0.8)]"
+                    : "bg-secondary/40 backdrop-blur-sm text-muted-foreground hover:text-white border border-primary/60 hover:border-primary/80 hover:bg-primary hover:shadow-[0_0_25px_rgba(59,130,246,0.8)]"
                 }`}
               >
                 <Film className="h-4 w-4" />
@@ -111,10 +111,10 @@ export default function HomeClient({
               </button>
               <button 
                 onClick={() => setFilter("series")}
-                className={`px-5 py-2.5 rounded-full flex items-center gap-2 transition-all duration-300 font-medium ${
+                className={`px-5 py-2.5 rounded-full flex items-center gap-2 transition-all duration-300 font-medium icon-interactive ${
                   filter === "series"
-                    ? "bg-primary text-white shadow-[0_0_18px_rgba(255,255,255,0.6)] hover:shadow-[0_0_25px_rgba(255,255,255,0.8)]"
-                    : "bg-secondary/40 backdrop-blur-sm text-muted-foreground hover:text-white border border-primary/60 hover:border-primary/80 hover:bg-secondary/60"
+                    ? "bg-primary text-white hover:shadow-[0_0_25px_rgba(59,130,246,0.8)]"
+                    : "bg-secondary/40 backdrop-blur-sm text-muted-foreground hover:text-white border border-primary/60 hover:border-primary/80 hover:bg-primary hover:shadow-[0_0_25px_rgba(59,130,246,0.8)]"
                 }`}
               >
                 <Tv className="h-4 w-4" />
@@ -128,20 +128,20 @@ export default function HomeClient({
                 value={sort} 
                 onValueChange={(value: "a-z" | "z-a" | "newest" | "oldest") => setSort(value)}
               >
-                <SelectTrigger className="bg-secondary/60 backdrop-blur-md border border-border text-white hover:bg-secondary/70 transition-colors">
+                <SelectTrigger className="bg-secondary/60 backdrop-blur-md border border-border text-white hover:bg-secondary/70 transition-colors icon-interactive">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent className="bg-card/90 backdrop-blur-md border border-border">
-                  <SelectItem value="a-z" className="focus:bg-accent focus:text-accent-foreground cursor-pointer">
+                  <SelectItem value="a-z" className="focus:bg-accent focus:text-accent-foreground cursor-pointer icon-interactive">
                     A-Z
                   </SelectItem>
-                  <SelectItem value="z-a" className="focus:bg-accent focus:text-accent-foreground cursor-pointer">
+                  <SelectItem value="z-a" className="focus:bg-accent focus:text-accent-foreground cursor-pointer icon-interactive">
                     Z-A
                   </SelectItem>
-                  <SelectItem value="newest" className="focus:bg-accent focus:text-accent-foreground cursor-pointer">
+                  <SelectItem value="newest" className="focus:bg-accent focus:text-accent-foreground cursor-pointer icon-interactive">
                     Newest
                   </SelectItem>
-                  <SelectItem value="oldest" className="focus:bg-accent focus:text-accent-foreground cursor-pointer">
+                  <SelectItem value="oldest" className="focus:bg-accent focus:text-accent-foreground cursor-pointer icon-interactive">
                     Oldest
                   </SelectItem>
                 </SelectContent>
@@ -153,7 +153,7 @@ export default function HomeClient({
         <main>
           {sortedItems.length === 0 ? (
             <div className="text-center py-20">
-              <div className="mx-auto w-fit p-4 bg-secondary/60 backdrop-blur-md rounded-full mb-6 border border-border">
+              <div className="mx-auto w-fit p-4 bg-secondary/60 backdrop-blur-md rounded-full mb-6 border border-border icon-interactive">
                 <Film className="h-16 w-16 text-primary" />
               </div>
 
@@ -161,7 +161,7 @@ export default function HomeClient({
 
               <p className="text-muted-foreground mb-8 max-w-md mx-auto">
                 To get started, add some movies or series to the{" "}
-                <code className="bg-muted/50 px-2 py-1 rounded-md font-mono text-sm text-white">
+                <code className="bg-muted/50 px-2 py-1 rounded-md font-mono text-sm text-white icon-interactive">
                   public/movies/
                 </code>{" "}
                 directory on your server.
@@ -175,7 +175,7 @@ export default function HomeClient({
                 </CardHeader>
                 <CardContent>
                   <pre className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-md overflow-x-auto border border-border">
-                    <code>
+                    <code className="icon-interactive">
                       {`public/movies/
 ├── movie-folder/
 │   ├── cover.jpg
@@ -203,7 +203,7 @@ export default function HomeClient({
         <footer className="border-t border-border/60 mt-16 pt-8">
           <div className="text-center text-muted-foreground text-sm">
             <p>
-              <span className="font-bold text-primary">Home Cinema</span> • For
+              <span className="font-bold text-primary icon-interactive">Home Cinema</span> • For
               Personal Use Only • {new Date().getFullYear()}
             </p>
           </div>
