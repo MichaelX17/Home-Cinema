@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* =========================
+   THEME TOKENS
+========================= */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -54,7 +57,9 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* Scrollbar personalizada */
+/* =========================
+   SCROLLBAR
+========================= */
 ::-webkit-scrollbar {
   width: 10px;
 }
@@ -72,11 +77,12 @@
   background: #3a3a3a;
 }
 
-/* Dark theme por defecto con gradiente Rojo-Verde */
+/* =========================
+   DARK THEME (DEFAULT)
+========================= */
 :root {
   --radius: 0.625rem;
 
-  /* Gradiente rojo a verde para prueba */
   --background: linear-gradient(
     135deg,
     rgb(25, 23, 23) 0%,
@@ -109,12 +115,6 @@
   --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.62 0.17 255);
 
-  --chart-1: oklch(0.62 0.17 255);
-  --chart-2: oklch(0.58 0.14 240);
-  --chart-3: oklch(0.46 0 0);
-  --chart-4: oklch(0.72 0.05 260);
-  --chart-5: oklch(0.65 0.02 200);
-
   --sidebar: oklch(0.16 0 0);
   --sidebar-foreground: oklch(0.94 0 0);
   --sidebar-primary: oklch(0.62 0.17 255);
@@ -125,71 +125,86 @@
   --sidebar-ring: oklch(0.62 0.17 255);
 }
 
-/* Tema claro opcional */
-.light {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-
-  --destructive: oklch(0.577 0.245 27.325);
-
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-/* Pinter in Icons */
-
-.icon-interactive {
-  cursor: pointer;
-  transition: transform 0.15s ease, opacity 0.15s ease;
-}
-
-
-
+/* =========================
+   BASE LAYER
+========================= */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
 
+  html {
+    height: 100%;
+    background-color: #000; /* evita flashes blancos */
+  }
+
   body {
     font-family: var(--font-sans);
     margin: 0;
-    overflow-x: hidden;
-    background: var(--background);
     color: var(--foreground);
-    background-attachment: fixed;
+    background: transparent;
+    overflow-x: hidden;
+    min-height: 100%;
   }
+}
+
+/* =========================
+   BACKGROUND FIX DEFINITIVO (MÓVIL SAFE)
+========================= */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+
+  width: 100vw;
+
+  /* Altura segura */
+  height: 100vh;
+  height: 100dvh;
+
+  /* Oversize para evitar gaps al colapsar barras */
+  min-height: calc(100vh + 120px);
+
+  background-image: var(--background);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+
+  z-index: -1;
+  pointer-events: none;
+
+  /* Previene glitches en Safari */
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* =========================
+   NEXT.JS ROOT
+========================= */
+#__next {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* =========================
+   SAFARI iOS FIX ESPECÍFICO
+========================= */
+@supports (-webkit-touch-callout: none) {
+  html {
+    height: -webkit-fill-available;
+  }
+
+  body {
+    min-height: -webkit-fill-available;
+  }
+
+  body::before {
+    height: -webkit-fill-available;
+    min-height: calc(-webkit-fill-available + 120px);
+  }
+}
+
+.icon-interactive {
+  cursor: pointer;
 }

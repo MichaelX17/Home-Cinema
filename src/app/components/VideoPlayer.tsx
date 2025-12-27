@@ -332,7 +332,7 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
                     rgba(255,255,255,0.3) 100%
                   )`,
                   }}
-                  className="
+                  className=" 
                   icon-interactive
                   w-24 h-1.5 rounded-full appearance-none
                   [&::-webkit-slider-thumb]:appearance-none

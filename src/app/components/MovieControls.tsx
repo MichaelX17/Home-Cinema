@@ -17,6 +17,7 @@ const MovieControls: FC<MovieControlsProps> = ({ movie }) => {
       <h2 className="text-xl font-bold mb-4 text-primary">Playback Options</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <Button
+          className="icon-interactive"
           variant="outline"
           onClick={() => {
             localStorage.removeItem(`progress_${movie.title}`);
@@ -27,6 +28,7 @@ const MovieControls: FC<MovieControlsProps> = ({ movie }) => {
           Reset Progress
         </Button>
         <Button
+          className="icon-interactive"
           variant="outline"
           onClick={() => {
             if (typeof window !== "undefined") {
@@ -38,6 +40,7 @@ const MovieControls: FC<MovieControlsProps> = ({ movie }) => {
           Open in New Tab
         </Button>
         <Button
+          className="icon-interactive"
           variant="outline"
           onClick={() => {
             navigator.clipboard.writeText(window.location.href);

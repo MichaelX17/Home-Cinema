@@ -26,7 +26,6 @@ export default async function MediaPage({ params }: MediaPageProps) {
       <header className="mb-8">
         <Button asChild variant="outline">
           <Link href="/" className="inline-flex items-center gap-2">
-            <span className="text-lg">←</span>
             <span>Back to Catalog</span>
           </Link>
         </Button>
