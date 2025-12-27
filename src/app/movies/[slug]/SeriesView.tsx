@@ -221,7 +221,7 @@ export default function SeriesView({ media }: { media: any }) {
 
                             <Button
                               onClick={() => handlePlayEpisode(episode)}
-                              className="w-full"
+                              className="w-full icon-interactive btn-blue-shadow"
                             >
                               <Play className="h-4 w-4 mr-2" />
                               Play Episode

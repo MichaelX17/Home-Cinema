@@ -208,3 +208,11 @@ body::before {
 .icon-interactive {
   cursor: pointer;
 }
+
+@layer components {
+  .btn-blue-shadow {
+    
+    /* En hover: sombra más grande, más intensa y un poco de elevación */
+    @apply hover:shadow-2xl hover:shadow-blue-500/50 hover:-translate-y-0.5;
+  }
+}
