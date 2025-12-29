@@ -11,7 +11,6 @@ export default function MovieView({ media }: { media: any }) {
       <div className="mb-8">
         <VideoPlayer
           src={media.video}
-          poster={media.cover}
           title={media.title}
         />
       </div>
