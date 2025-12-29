@@ -55,3 +55,5 @@ next-env.d.ts
 /public/movies/**/*.webp
 /public/movies/**/*.json
 /public/movies/**/*.srt
+/public/movies/**/**/*.srt
+/public/movies/**/**/**/*.srt
