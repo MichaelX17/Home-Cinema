@@ -54,3 +54,4 @@ next-env.d.ts
 /public/movies/**/*.png
 /public/movies/**/*.webp
 /public/movies/**/*.json
+/public/movies/**/*.srt
