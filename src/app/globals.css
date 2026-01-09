@@ -209,6 +209,10 @@ body::before {
   cursor: pointer;
 }
 
+.player-inactive .icon-interactive {
+  cursor: none;
+}
+
 @layer components {
   .btn-blue-shadow {
     

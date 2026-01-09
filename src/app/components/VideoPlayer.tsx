@@ -21,6 +21,10 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
   const [duration, setDuration] = useState(0);
   const [clickTimer, setClickTimer] = useState<NodeJS.Timeout | null>(null);
   const [showPlayPauseIcon, setShowPlayPauseIcon] = useState(false);
+  const [isInactive, setIsInactive] = useState(false);
+  const [showCursor, setShowCursor] = useState(true);
+  const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
+  const cursorTimer = useRef<NodeJS.Timeout | null>(null);
 
   const progress = duration ? (currentTime / duration) * 100 : 0;
 
@@ -114,6 +118,80 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [isDesktop, isPlaying, volume]);
+  
+  /* ===== Inactividad y cursor ===== */
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !isDesktop) return;
+
+    const resetTimers = () => {
+      // Limpiar timers de inactividad
+      if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current);
+      }
+      
+      // Timer para ocultar cursor (más corto que el de controles)
+      if (cursorTimer.current) {
+        clearTimeout(cursorTimer.current);
+      }
+      
+      // Mostrar cursor inmediatamente
+      setShowCursor(true);
+      
+      // Ocultar cursor después de 1 segundo (si está reproduciendo)
+      if (isPlaying) {
+        cursorTimer.current = setTimeout(() => {
+          setShowCursor(false);
+        }, 1000);
+      }
+    };
+
+    // Si no está reproduciendo, controles y cursor siempre visibles
+    if (!isPlaying) {
+      setIsInactive(false);
+      setShowCursor(true);
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      if (cursorTimer.current) clearTimeout(cursorTimer.current);
+      return;
+    }
+
+    const handleActivity = () => {
+      setIsInactive(false); // Mostrar controles
+      resetTimers();
+      
+      // Ocultar controles después de 3 segundos
+      inactivityTimer.current = setTimeout(() => {
+        setIsInactive(true);
+      }, 3000);
+    };
+
+    const handleMouseLeave = () => {
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      if (cursorTimer.current) clearTimeout(cursorTimer.current);
+      setIsInactive(true);
+      setShowCursor(true); // Mostrar cursor al salir
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      handleActivity();
+      // Forzar actualización de posición del cursor
+      container.style.setProperty('--mouse-x', `${e.clientX}px`);
+      container.style.setProperty('--mouse-y', `${e.clientY}px`);
+    };
+
+    container.addEventListener("mousemove", handleMouseMove);
+    container.addEventListener("mouseleave", handleMouseLeave);
+
+    // Iniciar la secuencia de inactividad
+    handleActivity();
+
+    return () => {
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      if (cursorTimer.current) clearTimeout(cursorTimer.current);
+      container.removeEventListener("mousemove", handleMouseMove);
+      container.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, [isDesktop, isPlaying]);
 
   /* ===== Acciones ===== */
   const togglePlay = () => {
@@ -153,30 +231,24 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
     }
   };
 
-  // Nuevo: Manejar clic y doble clic
   const handleVideoClick = () => {
     if (isDesktop) {
       if (clickTimer) {
         clearTimeout(clickTimer);
         setClickTimer(null);
-        // Doble clic: pantalla completa
         fullscreen();
       } else {
-        // Primer clic: inicia temporizador para doble clic
         const timer = setTimeout(() => {
-          // Clic simple: play/pause
           togglePlay();
-          // Mostrar icono temporal
           setShowPlayPauseIcon(true);
           setTimeout(() => setShowPlayPauseIcon(false), 500);
           setClickTimer(null);
-        }, 300); // 300ms para detectar doble clic
+        }, 300);
         setClickTimer(timer);
       }
     }
   };
 
-  // Para el overlay de play (solo cuando está pausado)
   const handleOverlayClick = () => {
     if (isDesktop && !isPlaying) {
       togglePlay();
@@ -190,11 +262,13 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
       ref={containerRef}
       tabIndex={0}
       className={`
-        group relative bg-black overflow-hidden outline-none
+        relative bg-black overflow-hidden outline-none
         ${isFullscreen ? "w-screen h-screen rounded-none" : "w-full rounded-lg"}
+        ${!showCursor ? "cursor-none" : "cursor-auto"}
+        ${isInactive ? "player-inactive" : ""}
       `}
     >
-      {/* VIDEO - Añadido onClick para toggle play/pause y doble clic para pantalla completa */}
+      {/* VIDEO */}
       <video
         ref={videoRef}
         src={src}
@@ -204,16 +278,16 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
         controls={!isDesktop}
         onClick={handleVideoClick}
         className={`
-          bg-black cursor-pointer w-full h-full
+          bg-black w-full h-full
           ${isFullscreen ? "object-contain" : ""}
         `}
       />
 
-      {/* OVERLAY PLAY - Solo aparece cuando está pausado, ahora con icono personalizado */}
+      {/* OVERLAY PLAY */}
       {isDesktop && !isPlaying && (
         <div
           onClick={handleOverlayClick}
-          className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 opacity-100 transition-opacity"
         >
           <Image
             src="/icons/play.png"
@@ -227,10 +301,14 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
 
       {/* CONTROLES DESKTOP */}
       {isDesktop && (
-        <div className="pointer-events-none absolute inset-0 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+        <div className={`
+          pointer-events-none absolute inset-0 flex flex-col justify-end
+          transition-opacity duration-300
+          ${isInactive ? "opacity-0" : "opacity-100"}
+        `}>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
-          <div className="pointer-events-auto relative z-20 px-6 pb-6 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className={`relative z-20 px-6 pb-6 ${isInactive ? "pointer-events-none" : "pointer-events-auto"}`}>
             {/* PROGRESS */}
             <input
               type="range"
@@ -367,6 +445,9 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
           </div>
         </div>
       )}
+
+      {/* Cursa la desaparición del cursor sobre todo el vídeo */}
+      {isInactive && <div className="absolute inset-0 z-50 cursor-none" />}
     </div>
   );
 }
