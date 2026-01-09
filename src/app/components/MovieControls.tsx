@@ -14,7 +14,7 @@ interface MovieControlsProps {
 const MovieControls: FC<MovieControlsProps> = ({ movie }) => {
   return (
     <div className="p-4 rounded-lg bg-card border border-border mt-8">
-      <h2 className="text-xl font-bold mb-4 text-primary">Playback Options2</h2>
+      <h2 className="text-xl font-bold mb-4 text-primary">Playback Options</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <Button
           className="icon-interactive"
