@@ -43,6 +43,7 @@ A modern, feature-rich home cinema web application built with **Next.js & Tailwi
 
 | Home Page | Video Player |
 |:---:|:---:|
+| <img width="400" alt="Home" src="https://github.com/user-attachments/assets/0a7d4dca-5e58-43f3-bcbd-f4e9c8792c2d" /> | <img width="400" alt="Player" src="https://github.com/user-attachments/assets/3d71aa44-6127-4221-9373-209152f075c6" /> |
 | *Movie library with card grid layout* | *Full-featured video player with info sidebar* |
 
 ---
