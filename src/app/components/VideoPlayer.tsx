@@ -63,15 +63,48 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
       localStorage.setItem(`progress_${title}`, v.currentTime.toString());
     };
 
+    const onLoaded = () => setDuration(v.duration);
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+
     v.addEventListener("timeupdate", onTime);
-    v.addEventListener("loadedmetadata", () => setDuration(v.duration));
-    v.addEventListener("play", () => setIsPlaying(true));
-    v.addEventListener("pause", () => setIsPlaying(false));
+    v.addEventListener("loadedmetadata", onLoaded);
+    v.addEventListener("play", onPlay);
+    v.addEventListener("pause", onPause);
 
     return () => {
       v.removeEventListener("timeupdate", onTime);
+      v.removeEventListener("loadedmetadata", onLoaded);
+      v.removeEventListener("play", onPlay);
+      v.removeEventListener("pause", onPause);
     };
-  }, [title]);
+  }, [title, src]);
+
+  // When the source changes, reset timers/state and try to reload/play the new source
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+
+    // Reset UI state
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
+
+    // Attempt to load the new source
+    try {
+      v.pause();
+      v.load();
+      // Try to play — may be blocked by autoplay policies
+      const p = v.play();
+      if (p && typeof p.then === "function") {
+        p.catch(() => {
+          // autoplay prevented; leave paused but ensure controls are available
+        });
+      }
+    } catch (err) {
+      // ignore
+    }
+  }, [src]);
 
   /* ===== Fullscreen ===== */
   useEffect(() => {

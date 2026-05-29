@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Film, Tv, Menu, X } from "lucide-react";
+import { Film, Tv, Menu, X, Plus } from "lucide-react";
+import UploadModal from "./UploadModal";
 import MovieCatalog from "./MovieCatalog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export default function HomeClient({
   const [filter, setFilter] = useState<"all" | "movies" | "series">("all");
   const [sort, setSort] = useState<"a-z" | "z-a" | "newest" | "oldest">("a-z");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   // Aplicar filtro y ordenamiento
   const filteredItems = mediaItems.filter((item) => {
@@ -83,6 +85,10 @@ export default function HomeClient({
                 <Tv className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 <span className="text-white font-medium">{seriesCount}</span>
               </div>
+              <Button onClick={() => setShowUploadModal(true)} className="flex items-center gap-2 px-3 py-2 bg-primary text-white rounded-full cursor-pointer transition hover:shadow-lg hover:-translate-y-0.5">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Upload</span>
+              </Button>
             </div>
           </div>
 
@@ -299,6 +305,7 @@ export default function HomeClient({
           </div>
         </footer>
       </div>
+      <UploadModal open={showUploadModal} onClose={() => setShowUploadModal(false)} />
     </div>
   );
 }
