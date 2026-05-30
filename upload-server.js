@@ -9,16 +9,18 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
   : ["*"];
 
-const sanitizeName = (name) =>
-  name
+const sanitizeName = (name) => {
+  const safeInput = typeof name === "string" ? name : String(name ?? "");
+  return safeInput
     .trim()
     .replace(/[/\\?%*:|"<>]/g, "-")
     .replace(/\s+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 150) || `file-${Date.now()}`;
+};
 
 const createUploadDir = (folderName) => {
-  const safeName = sanitizeName(folderName || "media");
+  const safeName = sanitizeName(folderName ?? "media");
   const targetDir = path.join(process.cwd(), "public", "movies", safeName);
   fs.mkdirSync(targetDir, { recursive: true });
   return { safeName, targetDir };
@@ -85,11 +87,13 @@ const server = http.createServer((req, res) => {
   const busboy = Busboy({ headers: req.headers });
 
   busboy.on("field", (fieldname, value) => {
-    fields[fieldname] = value;
-    if (fieldname === "folderName") {
-      ensureMediaDir(value);
-    } else if (fieldname === "mediaType") {
-      mediaType = value || "movie";
+    const fieldKey = typeof fieldname === "string" ? fieldname : String(fieldname);
+    const fieldValue = typeof value === "string" ? value : String(value ?? "");
+    fields[fieldKey] = fieldValue;
+    if (fieldKey === "folderName") {
+      ensureMediaDir(fieldValue);
+    } else if (fieldKey === "mediaType") {
+      mediaType = fieldValue || "movie";
     }
   });
 
@@ -103,7 +107,8 @@ const server = http.createServer((req, res) => {
     });
 
   busboy.on("file", (fieldname, file, filename) => {
-    const rawFilename = filename || `${fieldname}-${Date.now()}`;
+    const fieldKey = typeof fieldname === "string" ? fieldname : String(fieldname);
+    const rawFilename = typeof filename === "string" && filename ? filename : `${fieldKey}-${Date.now()}`;
     const safeFilename = sanitizeName(rawFilename);
 
     if (!targetDir) {
@@ -167,7 +172,21 @@ const server = http.createServer((req, res) => {
     }
   });
 
+  req.on("error", (error) => {
+    console.error("Upload request error:", error);
+    if (!res.headersSent) {
+      sendJson(res, 500, { ok: false, error: String(error) });
+    }
+  });
+
   req.pipe(busboy);
+});
+
+server.on("clientError", (err, socket) => {
+  console.error("HTTP client error:", err);
+  if (!socket.destroyed) {
+    socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+  }
 });
 
 server.listen(PORT, HOST, () => {
