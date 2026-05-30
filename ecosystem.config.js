@@ -2,21 +2,31 @@ module.exports = {
   apps: [
     {
       name: "movies-app",
-      script: "pnpm",
-      args: "run start",
-      cwd: __dirname,
+      script: "/home/miguel/Desktop/Local-Apps/Home-Cinema/start-app.sh",
+      interpreter: "/bin/bash",
+      cwd: "/home/miguel/Desktop/Local-Apps/Home-Cinema",
       env: {
-        NODE_ENV: "production",
+        PORT: 3000,
+        SKIP_UPLOAD_SERVER: "true",
       },
     },
     {
       name: "movies-upload",
-      script: "node",
-      args: "upload-server.js",
-      cwd: __dirname,
+      script: "upload-server.js",
+      interpreter: "node",
+      cwd: "/home/miguel/Desktop/Local-Apps/Home-Cinema",
       env: {
         PORT: 4000,
         HOST: "0.0.0.0",
+      },
+    },
+    {
+      name: "files-app",
+      script: "/home/miguel/Desktop/Local-Apps/LANshare/start-app.sh",
+      interpreter: "/bin/bash",
+      cwd: "/home/miguel/Desktop/Local-Apps/LANshare",
+      env: {
+        PORT: 3001,
       },
     },
   ],
