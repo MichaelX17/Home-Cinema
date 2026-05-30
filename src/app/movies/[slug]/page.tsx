@@ -1,14 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getMedia, generateStaticParams } from "./getMedia";
+import { getMedia } from "./getMedia";
 import MovieView from "./MovieView";
 import SeriesView from "./SeriesView";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const dynamicParams = true;
-export { generateStaticParams };
 
 // Definir el tipo correcto para params en Next.js 14
 interface MediaPageProps {

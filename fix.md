@@ -7,6 +7,7 @@
 3. Se actualizó `package.json` para eliminar el script `upload-server`.
 4. Se dejó `ecosystem.config.js` solo con `movies-app` y `files-app`.
 5. Se aseguró que el frontend use `/api/upload` en el mismo proceso Next.
+6. Se eliminó la generación estática de rutas `movies/[slug]` para que el contenido sea dinámico.
 
 ## Problemas específicos solucionados
 
@@ -18,7 +19,12 @@
 - Ya no se usa `SKIP_UPLOAD_SERVER` ni el puerto `4000`.
 - El build y el inicio dependen únicamente del proceso principal de Next.
 
-### 3. Consistencia del frontend
+### 3. Contenido dinámico sin compilación
+- Se quitó `generateStaticParams` de `movies/[slug]/page.tsx`, evitando la prerenderización en build.
+- Se mantiene `export const dynamic = "force-dynamic"` y `export const revalidate = 0`.
+- Esto permite que nuevos videos/series se sirvan en runtime sin recompilar.
+
+### 4. Consistencia del frontend
 - `UploadModal.tsx` ahora envía pedidos a `/api/upload` dentro del mismo servidor.
 - Esto evita problemas de interpolación entre procesos y arranques fallidos.
 
