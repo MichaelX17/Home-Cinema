@@ -139,12 +139,13 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
       });
     }
 
-    // Use XHR to track upload progress
+    // Use XHR to track upload progress on the dedicated upload server
     setUploading(true);
     setUploadProgress(0);
     const xhr = new XMLHttpRequest();
     xhrRef.current = xhr;
-    xhr.open("POST", "/api/upload");
+    const uploadHost = `${window.location.protocol}//${window.location.hostname}:4000`;
+    xhr.open("POST", `${uploadHost}/api/upload`);
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) {
         const percent = Math.round((ev.loaded / ev.total) * 100);

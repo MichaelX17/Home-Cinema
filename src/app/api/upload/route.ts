@@ -48,8 +48,8 @@ export async function POST(req: Request) {
   const nodeBody = Readable.fromWeb(rawBody as any);
   // dynamic import to handle CJS/ESM interop in Next's runtime
   const BusboyModule = await import("busboy");
-  const BusboyCtor = (BusboyModule && (BusboyModule.default || BusboyModule)) as any;
-  const busboy = new BusboyCtor({ headers: { "content-type": contentType } });
+  const BusboyFactory = (BusboyModule && (BusboyModule.default || BusboyModule)) as any;
+  const busboy = BusboyFactory({ headers: { "content-type": contentType } });
 
   let folderName = `media-${Date.now()}`;
   let mediaType = "movie";
