@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     fs.mkdirSync(targetMediaDir, { recursive: true });
   };
 
-  busboy.on("field", (fieldname, value) => {
+  busboy.on("field", (fieldname: string, value: string) => {
     fields[fieldname] = value;
     if (fieldname === "folderName") {
       createMediaDir(value);
@@ -71,9 +71,11 @@ export async function POST(req: Request) {
     }
   });
 
-  busboy.on("file", (fieldname, file, filename) => {
-    const rawFilename = filename || `${fieldname}-${Date.now()}`;
-    const safeFilename = sanitizeName(rawFilename);
+  busboy.on(
+    "file",
+    (fieldname: string, file: NodeJS.ReadableStream, filename: string | undefined) => {
+      const rawFilename = filename || `${fieldname}-${Date.now()}`;
+      const safeFilename = sanitizeName(rawFilename);
 
     if (!targetMediaDir) {
       createMediaDir(fields.folderName || `media-${Date.now()}`);
