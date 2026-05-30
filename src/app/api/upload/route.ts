@@ -1,10 +1,8 @@
 import fs from "fs";
 import path from "path";
-import { pipeline, Readable } from "stream";
-import { promisify } from "util";
+import { Readable } from "stream";
+import Busboy from "busboy";
 import { NextResponse } from "next/server";
-
-const pipelineAsync = promisify(pipeline);
 
 const sanitizeName = (name: string) =>
   name
@@ -19,81 +17,118 @@ const safeFolderName = (folderName: string) => {
   return cleaned || `media-${Date.now()}`;
 };
 
-const writeStreamToFile = async (file: any, destPath: string) => {
-  const stream = file.stream();
-  if (!stream) {
-    throw new Error("Unable to read file stream");
-  }
-
-  const nodeStream = Readable.fromWeb(stream as any);
-  const writeStream = fs.createWriteStream(destPath);
-  await pipelineAsync(nodeStream, writeStream);
-};
+const writeFileFromStream = async (stream: NodeJS.ReadableStream, destPath: string) =>
+  new Promise<void>((resolve, reject) => {
+    const writeStream = fs.createWriteStream(destPath);
+    stream.pipe(writeStream);
+    writeStream.on("finish", resolve);
+    writeStream.on("error", reject);
+    stream.on("error", reject);
+  });
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.includes("multipart/form-data")) {
+    return NextResponse.json(
+      { ok: false, error: "Content-Type must be multipart/form-data" },
+      { status: 400 }
+    );
+  }
+
+  const rawBody = req.body;
+  if (!rawBody) {
+    return NextResponse.json({ ok: false, error: "Request body is missing" }, { status: 400 });
+  }
+
+  const fields: Record<string, string> = {};
+  const writePromises: Promise<void>[] = [];
+
+  const nodeBody = Readable.fromWeb(rawBody as any);
+  const busboy = new Busboy({ headers: { "content-type": contentType } });
+
+  let folderName = `media-${Date.now()}`;
+  let mediaType = "movie";
+  const mediaDirBase = path.join(process.cwd(), "public", "movies");
+  let targetMediaDir = "";
+
+  const createMediaDir = (rawFolderName: string) => {
+    folderName = safeFolderName(rawFolderName);
+    targetMediaDir = path.join(mediaDirBase, folderName);
+    fs.mkdirSync(targetMediaDir, { recursive: true });
+  };
+
+  busboy.on("field", (fieldname, value) => {
+    fields[fieldname] = value;
+    if (fieldname === "folderName") {
+      createMediaDir(value);
+    } else if (fieldname === "mediaType") {
+      mediaType = value || "movie";
+    }
+  });
+
+  busboy.on("file", (fieldname, file, filename) => {
+    const rawFilename = filename || `${fieldname}-${Date.now()}`;
+    const safeFilename = sanitizeName(rawFilename);
+
+    if (!targetMediaDir) {
+      createMediaDir(fields.folderName || `media-${Date.now()}`);
+    }
+
+    if (fieldname === "infoFile") {
+      const dest = path.join(
+        targetMediaDir,
+        rawFilename.toLowerCase().endsWith(".json") ? "info.json" : safeFilename
+      );
+      writePromises.push(writeFileFromStream(file, dest));
+      return;
+    }
+
+    if (fieldname === "cover") {
+      const dest = path.join(targetMediaDir, safeFilename);
+      writePromises.push(writeFileFromStream(file, dest));
+      return;
+    }
+
+    if (fieldname === "video") {
+      const dest = path.join(targetMediaDir, safeFilename);
+      writePromises.push(writeFileFromStream(file, dest));
+      return;
+    }
+
+    if (fieldname.startsWith("season-")) {
+      const season = fieldname.split("-")[1] || "1";
+      const seasonDir = path.join(targetMediaDir, `season${season}`);
+      fs.mkdirSync(seasonDir, { recursive: true });
+      const dest = path.join(seasonDir, safeFilename);
+      writePromises.push(writeFileFromStream(file, dest));
+      return;
+    }
+
+    const dest = path.join(targetMediaDir, safeFilename);
+    writePromises.push(writeFileFromStream(file, dest));
+  });
+
+  const busboyPromise = new Promise<void>((resolve, reject) => {
+    busboy.on("finish", resolve);
+    busboy.on("error", reject);
+    nodeBody.pipe(busboy);
+  });
+
   try {
-    const formData = await req.formData();
-    const mediaType = formData.get("mediaType")?.toString() || "movie";
-    const rawFolderName = formData.get("folderName")?.toString() || `media-${Date.now()}`;
-    const folderName = safeFolderName(rawFolderName);
+    await busboyPromise;
+    await Promise.all(writePromises);
 
-    const mediaDir = path.join(process.cwd(), "public", "movies", folderName);
-    fs.mkdirSync(mediaDir, { recursive: true });
-
-    // Handle entries
-    for (const [key, value] of formData.entries()) {
-      if (typeof value === "string") continue;
-
-      const maybeFile: any = value;
-      if (!maybeFile || typeof maybeFile.arrayBuffer !== "function") continue;
-
-      const rawFilename = maybeFile.name || `${key}-${Date.now()}`;
-      const filename = sanitizeName(rawFilename);
-
-      if (key === "infoFile") {
-        const dest = path.join(
-          mediaDir,
-          rawFilename.toLowerCase().endsWith(".json") ? "info.json" : filename
-        );
-        await writeStreamToFile(maybeFile, dest);
-        continue;
-      }
-
-      if (key === "cover") {
-        await writeStreamToFile(maybeFile, path.join(mediaDir, filename));
-        continue;
-      }
-
-      if (key === "video") {
-        await writeStreamToFile(maybeFile, path.join(mediaDir, filename));
-        continue;
-      }
-
-      if (key.startsWith("season-")) {
-        const parts = key.split("-");
-        const season = parts[1] || "1";
-        const seasonDir = path.join(mediaDir, `season${season}`);
-        fs.mkdirSync(seasonDir, { recursive: true });
-        await writeStreamToFile(maybeFile, path.join(seasonDir, filename));
-        continue;
-      }
-
-      await writeStreamToFile(maybeFile, path.join(mediaDir, filename));
+    if (!targetMediaDir) {
+      createMediaDir(fields.folderName || `media-${Date.now()}`);
     }
 
-    const infoText = formData.get("info");
-    if (infoText && typeof infoText === "string") {
-      try {
-        const dest = path.join(mediaDir, "info.json");
-        fs.writeFileSync(dest, infoText, "utf-8");
-      } catch (e) {
-        console.error("Failed to write info text", e);
-      }
+    const infoPath = path.join(targetMediaDir, "info.json");
+    if (fields.info) {
+      fs.writeFileSync(infoPath, fields.info, "utf-8");
     }
 
-    const infoPath = path.join(mediaDir, "info.json");
     if (!fs.existsSync(infoPath)) {
       const fallback = {
         title: folderName.replace(/[-_]/g, " ").trim(),
@@ -104,7 +139,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error(err);
+    console.error("Upload error", err);
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
 }
