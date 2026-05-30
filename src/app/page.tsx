@@ -14,6 +14,9 @@ interface MediaItem {
   type: "movie" | "series";
 }
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function getMediaItems(): MediaItem[] {
   try {
     const mediaDir = path.join(process.cwd(), "public/movies");
