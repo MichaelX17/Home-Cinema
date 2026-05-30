@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
-import Busboy from "busboy";
+// `busboy` is CJS; import dynamically to support ESM/CJS interop at runtime
 import { NextResponse } from "next/server";
 
 const sanitizeName = (name: string) =>
@@ -46,7 +46,10 @@ export async function POST(req: Request) {
   const writePromises: Promise<void>[] = [];
 
   const nodeBody = Readable.fromWeb(rawBody as any);
-  const busboy = new Busboy({ headers: { "content-type": contentType } });
+  // dynamic import to handle CJS/ESM interop in Next's runtime
+  const BusboyModule = await import("busboy");
+  const BusboyCtor = (BusboyModule && (BusboyModule.default || BusboyModule)) as any;
+  const busboy = new BusboyCtor({ headers: { "content-type": contentType } });
 
   let folderName = `media-${Date.now()}`;
   let mediaType = "movie";
