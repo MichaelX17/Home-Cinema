@@ -144,10 +144,7 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
     setUploadProgress(0);
     const xhr = new XMLHttpRequest();
     xhrRef.current = xhr;
-    // use streaming endpoint to avoid server memory issues on other machines
-    xhr.open("POST", "/api/upload-stream");
-    // pass folderName header so pages API can use it without buffering fields
-    xhr.setRequestHeader('X-Folder-Name', folderName || `media-${Date.now()}`);
+    xhr.open("POST", "/api/upload");
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) {
         const percent = Math.round((ev.loaded / ev.total) * 100);
