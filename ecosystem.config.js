@@ -7,7 +7,6 @@ module.exports = {
       cwd: "/home/miguel/Desktop/Local-Apps/Home-Cinema",
       env: {
         PORT: 3000,
-        SKIP_UPLOAD_SERVER: "true",
       },
     },
     {

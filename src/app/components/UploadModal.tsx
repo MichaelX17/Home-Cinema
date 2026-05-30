@@ -139,13 +139,12 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
       });
     }
 
-    // Use XHR to track upload progress on the dedicated upload server
+    // Use XHR to track upload progress on the internal Next.js API route
     setUploading(true);
     setUploadProgress(0);
     const xhr = new XMLHttpRequest();
     xhrRef.current = xhr;
-    const uploadHost = `${window.location.protocol}//${window.location.hostname}:4000`;
-    xhr.open("POST", `${uploadHost}/api/upload`);
+    xhr.open("POST", "/api/upload");
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) {
         const percent = Math.round((ev.loaded / ev.total) * 100);
