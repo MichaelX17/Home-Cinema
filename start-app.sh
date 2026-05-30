@@ -76,19 +76,6 @@ else
 fi
 
 # --- 4. START ---
-if [ "${SKIP_UPLOAD_SERVER:-false}" != "true" ]; then
-  echo "Iniciando servicio de uploads dedicado..."
-  if [ -f "upload-server.js" ]; then
-    node upload-server.js &
-    UPLOAD_PID=$!
-    echo "Upload server iniciado en segundo plano (PID=$UPLOAD_PID)"
-  else
-    echo "Advertencia: upload-server.js no se encontró, el servicio de uploads no se iniciará"
-  fi
-else
-  echo "SKIP_UPLOAD_SERVER=true: no se inicia el upload server desde este script"
-fi
-
 echo "Iniciando aplicación con pnpm start..."
 # Usamos exec para que PM2 gestione directamente el proceso de la app
 exec pnpm run start

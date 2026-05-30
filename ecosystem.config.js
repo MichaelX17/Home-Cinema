@@ -11,16 +11,6 @@ module.exports = {
       },
     },
     {
-      name: "movies-upload",
-      script: "upload-server.js",
-      interpreter: "node",
-      cwd: "/home/miguel/Desktop/Local-Apps/Home-Cinema",
-      env: {
-        PORT: 4000,
-        HOST: "0.0.0.0",
-      },
-    },
-    {
       name: "files-app",
       script: "/home/miguel/Desktop/Local-Apps/LANshare/start-app.sh",
       interpreter: "/bin/bash",
