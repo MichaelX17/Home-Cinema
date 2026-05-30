@@ -156,14 +156,19 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
       setUploading(false);
       if (xhr.status >= 200 && xhr.status < 300) {
         setTimeout(() => setUploadProgress(100), 100);
-        // show success toast
         try {
           toast.show({ title: "Upload completed", description: `"${folderName}" added.`, variant: "success" });
         } catch {}
         onClose();
         setTimeout(() => window.location.reload(), 700);
       } else {
-        const msg = `Upload failed: ${xhr.statusText || xhr.status}`;
+        let msg = `Upload failed: ${xhr.statusText || xhr.status}`;
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (data?.error) msg = `Upload failed: ${data.error}`;
+        } catch {
+          // keep generic message
+        }
         setErrors([msg]);
         try { toast.show({ title: "Error", description: msg, variant: "error" }); } catch {}
       }
