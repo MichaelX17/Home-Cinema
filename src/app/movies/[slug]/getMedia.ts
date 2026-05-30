@@ -27,6 +27,18 @@ export function getMedia(slug: string) {
         /\.(mp4|mkv|avi|mov|webm)$/i.test(f)
     );
 
+    const fallbackVideoFile = !videoFile
+      ? files.find(
+          (f) =>
+            !f.toLowerCase().includes("cover") &&
+            !f.toLowerCase().includes("poster") &&
+            !/\.(jpg|jpeg|png|webp)$/i.test(f) &&
+            !f.endsWith(".json")
+        )
+      : undefined;
+
+    const effectiveVideoFile = videoFile || fallbackVideoFile;
+
     // Leer metadata
     let metadata: any = {};
     const jsonFile = files.find((f) => f.endsWith(".json"));
@@ -56,7 +68,7 @@ export function getMedia(slug: string) {
         actors: metadata.actors || [],
         rating: metadata.rating,
         cover: coverFile ? `/movies/${slug}/${coverFile}` : "",
-        video: videoFile ? `/movies/${slug}/${videoFile}` : "",
+        video: effectiveVideoFile ? `/movies/${slug}/${effectiveVideoFile}` : "",
         type: "movie",
       };
     }

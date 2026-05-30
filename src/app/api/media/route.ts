@@ -36,6 +36,18 @@ export function GET() {
             /\.(mp4|mkv|avi|mov|webm)$/i.test(f)
         );
 
+        const fallbackVideoFile = !videoFile
+          ? files.find(
+              (f) =>
+                !f.toLowerCase().includes("cover") &&
+                !f.toLowerCase().includes("poster") &&
+                !/\.(jpg|jpeg|png|webp)$/i.test(f) &&
+                !f.endsWith(".json")
+            )
+          : undefined;
+
+        const effectiveVideoFile = videoFile || fallbackVideoFile;
+
         let metadata: any = {};
         const jsonFile = files.find((f) => f.endsWith(".json"));
         if (jsonFile) {
@@ -49,7 +61,7 @@ export function GET() {
         const rawType = metadata.type || "movie";
         const type = rawType === "serie" ? "series" : rawType;
 
-        if (type === "movie" && !videoFile) {
+        if (type === "movie" && !effectiveVideoFile) {
           return null;
         }
 
@@ -61,7 +73,7 @@ export function GET() {
           duration: metadata.duration,
           description: metadata.description,
           cover: coverFile ? `/movies/${folder}/${coverFile}` : "",
-          video: type === "movie" ? (videoFile ? `/movies/${folder}/${videoFile}` : "") : undefined,
+          video: type === "movie" ? (effectiveVideoFile ? `/movies/${folder}/${effectiveVideoFile}` : "") : undefined,
           type,
         };
       })

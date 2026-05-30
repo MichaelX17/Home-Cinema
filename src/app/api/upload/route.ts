@@ -1,19 +1,58 @@
 import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
-// `busboy` is CJS; import dynamically to support ESM/CJS interop at runtime
 import { NextResponse } from "next/server";
 
-const sanitizeName = (name: string) =>
-  name
-    .trim()
+// Mapeo de MIME types a extensiones (puedes ampliarlo según necesites)
+const mimeToExt: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "video/mp4": ".mp4",
+  "video/x-matroska": ".mkv",
+  "video/quicktime": ".mov",
+  "video/x-msvideo": ".avi",
+  "video/webm": ".webm",
+  "application/json": ".json",
+};
+
+// Obtener extensión a partir del MIME type
+const getExtensionFromMime = (mimeType?: string): string => {
+  if (!mimeType) return "";
+  const normalized = mimeType.toLowerCase();
+  return mimeToExt[normalized] || "";
+};
+
+// Sanitiza el nombre: elimina caracteres peligrosos, espacios, etc., pero conserva la extensión
+const sanitizeName = (value: unknown, fallbackExt = "") => {
+  let name = String(value ?? "").trim();
+  if (!name) name = `file-${Date.now()}`;
+
+  // Separar nombre base y extensión
+  let ext = "";
+  const lastDot = name.lastIndexOf(".");
+  if (lastDot !== -1 && lastDot > 0 && lastDot < name.length - 1) {
+    ext = name.slice(lastDot);
+    name = name.slice(0, lastDot);
+  } else if (fallbackExt) {
+    ext = fallbackExt.startsWith(".") ? fallbackExt : `.${fallbackExt}`;
+  }
+
+  // Limpiar solo el nombre base
+  const cleanBase = name
     .replace(/[/\\?%*:|"<>]/g, "-")
     .replace(/\s+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 150) || `file-${Date.now()}`;
+    .slice(0, 150);
 
-const safeFolderName = (folderName: string) => {
-  const cleaned = sanitizeName(folderName || "media");
+  // Reconstruir nombre completo
+  const finalName = cleanBase || `file-${Date.now()}`;
+  return ext ? `${finalName}${ext}` : finalName;
+};
+
+const safeFolderName = (folderName: unknown) => {
+  const cleaned = sanitizeName(folderName || "media", "");
   return cleaned || `media-${Date.now()}`;
 };
 
@@ -29,7 +68,8 @@ const writeFileFromStream = async (stream: NodeJS.ReadableStream, destPath: stri
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const contentType = req.headers.get("content-type") || "";
+  const headers = Object.fromEntries(req.headers.entries());
+  const contentType = String(headers["content-type"] || headers["Content-Type"] || "");
   if (!contentType.includes("multipart/form-data")) {
     return NextResponse.json(
       { ok: false, error: "Content-Type must be multipart/form-data" },
@@ -46,74 +86,116 @@ export async function POST(req: Request) {
   const writePromises: Promise<void>[] = [];
 
   const nodeBody = Readable.fromWeb(rawBody as any);
-  // dynamic import to handle CJS/ESM interop in Next's runtime
   const BusboyModule = await import("busboy");
   const BusboyFactory = (BusboyModule && (BusboyModule.default || BusboyModule)) as any;
-  const busboy = BusboyFactory({ headers: { "content-type": contentType } });
+  const busboy = BusboyFactory({ headers });
 
   let folderName = `media-${Date.now()}`;
   let mediaType = "movie";
   const mediaDirBase = path.join(process.cwd(), "public", "movies");
   let targetMediaDir = "";
 
-  const createMediaDir = (rawFolderName: string) => {
+  const createMediaDir = (rawFolderName: unknown) => {
     folderName = safeFolderName(rawFolderName);
     targetMediaDir = path.join(mediaDirBase, folderName);
     fs.mkdirSync(targetMediaDir, { recursive: true });
   };
 
-  busboy.on("field", (fieldname: string, value: string) => {
-    fields[fieldname] = value;
+  // Función mejorada para obtener el nombre original + extensión a partir del objeto file de busboy
+  const getOriginalFilename = (
+    filename: unknown,
+    fieldname: string,
+    mimeType?: string
+  ): string => {
+    let original = "";
+
+    // Intentar extraer string directo o propiedad 'name' / 'filename'
+    if (typeof filename === "string") {
+      original = filename;
+    } else if (filename && typeof filename === "object") {
+      if ("name" in filename && typeof filename.name === "string") original = filename.name;
+      else if ("filename" in filename && typeof filename.filename === "string")
+        original = filename.filename;
+    }
+
+    if (original.trim()) {
+      // Si el nombre ya tiene extensión, devolverlo tal cual
+      return original;
+    }
+
+    // Fallback: generar nombre genérico con timestamp y extensión según MIME
+    const ext = getExtensionFromMime(mimeType);
+    return `${fieldname}-${Date.now()}${ext}`;
+  };
+
+  busboy.on("field", (fieldname: string, value: unknown) => {
+    const stringValue = String(value ?? "");
+    fields[fieldname] = stringValue;
     if (fieldname === "folderName") {
-      createMediaDir(value);
+      createMediaDir(stringValue);
     } else if (fieldname === "mediaType") {
-      mediaType = value || "movie";
+      mediaType = stringValue || "movie";
     }
   });
 
+  // Añadimos los parámetros encoding y mimetype (busboy los envía)
   busboy.on(
     "file",
-    (fieldname: string, file: NodeJS.ReadableStream, filename: string | undefined) => {
-      const rawFilename = filename || `${fieldname}-${Date.now()}`;
-      const safeFilename = sanitizeName(rawFilename);
+    (
+      fieldname: string,
+      file: NodeJS.ReadableStream,
+      filename: unknown,
+      encoding: string,
+      mimetype: string
+    ) => {
+      // Obtener nombre original con extensión (si es posible)
+      const rawFilename = getOriginalFilename(filename, fieldname, mimetype);
+      const safeFilename = sanitizeName(rawFilename, getExtensionFromMime(mimetype));
 
-    if (!targetMediaDir) {
-      createMediaDir(fields.folderName || `media-${Date.now()}`);
-    }
+      if (!targetMediaDir) {
+        createMediaDir(fields.folderName || `media-${Date.now()}`);
+      }
 
-    if (fieldname === "infoFile") {
-      const dest = path.join(
-        targetMediaDir,
-        rawFilename.toLowerCase().endsWith(".json") ? "info.json" : safeFilename
-      );
-      writePromises.push(writeFileFromStream(file, dest));
-      return;
-    }
+      // Archivo de información (info.json)
+      if (fieldname === "infoFile") {
+        // Si el archivo subido es un JSON, forzamos el nombre info.json
+        const dest = path.join(
+          targetMediaDir,
+          rawFilename.toLowerCase().endsWith(".json") ? "info.json" : safeFilename
+        );
+        writePromises.push(writeFileFromStream(file, dest));
+        return;
+      }
 
-    if (fieldname === "cover") {
+      // Cover o poster
+      if (fieldname === "cover") {
+        const dest = path.join(targetMediaDir, safeFilename);
+        writePromises.push(writeFileFromStream(file, dest));
+        return;
+      }
+
+      // Video principal (para películas)
+      if (fieldname === "video") {
+        const dest = path.join(targetMediaDir, safeFilename);
+        writePromises.push(writeFileFromStream(file, dest));
+        return;
+      }
+
+      // Episodios de series (fieldname: season-1, season-2...)
+      if (fieldname.startsWith("season-")) {
+        const season = fieldname.split("-")[1] || "1";
+        const seasonDir = path.join(targetMediaDir, `season${season}`);
+        fs.mkdirSync(seasonDir, { recursive: true });
+        const dest = path.join(seasonDir, safeFilename);
+        writePromises.push(writeFileFromStream(file, dest));
+        return;
+      }
+
+      // Cualquier otro archivo se guarda en la raíz de la carpeta
       const dest = path.join(targetMediaDir, safeFilename);
       writePromises.push(writeFileFromStream(file, dest));
-      return;
     }
-
-    if (fieldname === "video") {
-      const dest = path.join(targetMediaDir, safeFilename);
-      writePromises.push(writeFileFromStream(file, dest));
-      return;
-    }
-
-    if (fieldname.startsWith("season-")) {
-      const season = fieldname.split("-")[1] || "1";
-      const seasonDir = path.join(targetMediaDir, `season${season}`);
-      fs.mkdirSync(seasonDir, { recursive: true });
-      const dest = path.join(seasonDir, safeFilename);
-      writePromises.push(writeFileFromStream(file, dest));
-      return;
-    }
-
-    const dest = path.join(targetMediaDir, safeFilename);
-    writePromises.push(writeFileFromStream(file, dest));
-  });
+  );
 
   const busboyPromise = new Promise<void>((resolve, reject) => {
     busboy.on("finish", resolve);
