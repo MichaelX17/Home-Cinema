@@ -179,8 +179,8 @@ const handleMultipartUpload = async (req: Request) => {
   };
 
   const appendFileFromFormEntry = async (entry: File, destPath: string) => {
-    const stream = entry.stream();
-    await writeFileFromStream(stream as any, destPath);
+    const buffer = Buffer.from(await entry.arrayBuffer());
+    fs.writeFileSync(destPath, buffer);
   };
 
   try {
