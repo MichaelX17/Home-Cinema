@@ -197,9 +197,13 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
       metadataForm.append("cover", coverFile);
     }
 
+    const uploadFiles: Array<{ file: File; path: string }> = [];
+
     if (mediaType === "series") {
       seasons.forEach((season) => {
-        season.files.forEach((file) => metadataForm.append(`season-${season.id}`, file));
+        season.files.forEach((file) => {
+          uploadFiles.push({ file, path: `season-${season.id}/${file.name}` });
+        });
       });
     }
 
@@ -221,7 +225,11 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
       }
 
       if (mediaType === "movie" && movieFile) {
-        await uploadFileInChunks(movieFile);
+        uploadFiles.push({ file: movieFile, path: movieFile.name });
+      }
+
+      for (const { file, path } of uploadFiles) {
+        await uploadFileInChunks(file, path);
       }
 
       setUploadProgress(100);

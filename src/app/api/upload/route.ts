@@ -53,6 +53,16 @@ const safeFolderName = (folderName: unknown) => {
   return cleaned || `media-${Date.now()}`;
 };
 
+const sanitizeRelativePath = (rawPath: string) => {
+  const normalized = rawPath.replace(/\\/g, "/");
+  const segments = normalized
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0 && segment !== "." && segment !== "..")
+    .map((segment) => sanitizeName(segment));
+  return segments.join(path.sep);
+};
+
 const writeFileFromStream = async (stream: NodeJS.ReadableStream, destPath: string, flags: string = "w") =>
   new Promise<void>((resolve, reject) => {
     const writeStream = fs.createWriteStream(destPath, { flags });
@@ -61,6 +71,15 @@ const writeFileFromStream = async (stream: NodeJS.ReadableStream, destPath: stri
     writeStream.on("error", reject);
     stream.on("error", reject);
   });
+
+const streamRequestBodyToFile = async (req: Request, destPath: string, append = false) => {
+  if (!req.body) {
+    throw new Error("Request body is missing");
+  }
+
+  const bodyStream = Readable.fromWeb(req.body as any);
+  await writeFileFromStream(bodyStream, destPath, append ? "a" : "w");
+};
 
 const getOriginalFilename = (
   filename: unknown,
@@ -107,18 +126,24 @@ const handleChunkUpload = async (req: Request) => {
   const targetDir = folderName ? path.join(MEDIA_STORAGE_DIR, folderName) : MEDIA_STORAGE_DIR;
   fs.mkdirSync(targetDir, { recursive: true });
 
-  const safeFileName = sanitizeName(fileNameHeader);
-  const tempFilePath = path.join(targetDir, `${safeFileName}.part`);
-  const finalFilePath = path.join(targetDir, safeFileName);
+  const filePathHeader = req.headers.get("x-file-path") || fileNameHeader;
+  const safeRelativePath = sanitizeRelativePath(filePathHeader);
+  if (!safeRelativePath) {
+    return NextResponse.json({ ok: false, error: "Invalid file path." }, { status: 400 });
+  }
+
+  const targetFilePath = path.join(targetDir, safeRelativePath);
+  fs.mkdirSync(path.dirname(targetFilePath), { recursive: true });
+
+  const tempFilePath = `${targetFilePath}.part`;
+  const finalFilePath = targetFilePath;
 
   try {
     if (chunkIndex === 0 && fs.existsSync(tempFilePath)) {
       fs.unlinkSync(tempFilePath);
     }
 
-    const arrayBuffer = await req.arrayBuffer();
-    const chunkBuffer = Buffer.from(arrayBuffer);
-    fs.writeFileSync(tempFilePath, chunkBuffer, { flag: "a" });
+    await streamRequestBodyToFile(req, tempFilePath, true);
 
     if (chunkIndex === totalChunks - 1) {
       if (fs.existsSync(finalFilePath)) {
