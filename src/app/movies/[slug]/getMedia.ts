@@ -90,7 +90,11 @@ export function getMedia(slug: string) {
           );
         })
         .sort((a, b) => {
-          // Ordenar por número de temporada
+          // Ordenar principalmente por nombre (alfabético), con fallback numérico
+          const nameA = a.toLowerCase();
+          const nameB = b.toLowerCase();
+          const cmp = nameA.localeCompare(nameB);
+          if (cmp !== 0) return cmp;
           const numA = parseInt(a.replace(/\D/g, "")) || 0;
           const numB = parseInt(b.replace(/\D/g, "")) || 0;
           return numA - numB;
@@ -104,7 +108,11 @@ export function getMedia(slug: string) {
         const episodes: any[] = seasonFiles
           .filter((f) => /\.(mp4|mkv|avi|mov|webm)$/i.test(f))
           .sort((a, b) => {
-            // Ordenar episodios por número
+            // Ordenar principalmente por nombre (alfabético), con fallback numérico
+            const nameA = a.toLowerCase();
+            const nameB = b.toLowerCase();
+            const cmp = nameA.localeCompare(nameB);
+            if (cmp !== 0) return cmp;
             const numA = parseInt(a.replace(/\D/g, "")) || 0;
             const numB = parseInt(b.replace(/\D/g, "")) || 0;
             return numA - numB;
