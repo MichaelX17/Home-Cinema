@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import { Readable } from "stream";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +34,47 @@ const getMimeType = (filename: string) => {
   }
 };
 
+const createWebStreamFromNode = (nodeStream: fs.ReadStream, request: NextRequest) => {
+  let closed = false;
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const closeController = () => {
+        if (closed) return;
+        closed = true;
+        controller.close();
+      };
+
+      const errorController = (err: unknown) => {
+        if (closed) return;
+        closed = true;
+        controller.error(err);
+      };
+
+      nodeStream.on("data", (chunk) => {
+        if (closed) return;
+        controller.enqueue(new Uint8Array(chunk));
+      });
+
+      nodeStream.on("end", closeController);
+      nodeStream.on("close", closeController);
+      nodeStream.on("error", errorController);
+
+      request.signal.addEventListener(
+        "abort",
+        () => {
+          nodeStream.destroy();
+          closeController();
+        },
+        { once: true }
+      );
+    },
+    cancel() {
+      nodeStream.destroy();
+    },
+  });
+};
+
 export async function GET(request: NextRequest, context: { params: Promise<{ name: string }> }) {
   try {
     const params = await context.params;
@@ -61,14 +101,13 @@ export async function GET(request: NextRequest, context: { params: Promise<{ nam
     const contentType = getMimeType(resolvedPath);
 
     if (!range) {
-      // Envío completo si no hay Range header.
       const headers = new Headers({
         "Content-Type": contentType,
         "Content-Length": String(fileSize),
         "Accept-Ranges": "bytes",
       });
       const stream = fs.createReadStream(resolvedPath);
-      const body = Readable.toWeb(stream) as unknown as BodyInit;
+      const body = createWebStreamFromNode(stream, request);
       return new NextResponse(body, { status: 200, headers });
     }
 
@@ -94,7 +133,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ nam
     });
 
     const stream = fs.createReadStream(resolvedPath, { start, end });
-    const body = Readable.toWeb(stream) as unknown as BodyInit;
+    const body = createWebStreamFromNode(stream, request);
     return new NextResponse(body, { status: 206, headers });
   } catch (error) {
     console.error("Video stream error", error);
