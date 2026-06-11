@@ -27,7 +27,8 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
 
-  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const CHUNK_SIZE = 10 * 1024 * 1024;
 
   const [mounted, setMounted] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
@@ -106,12 +107,10 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
     e.preventDefault();
     setErrors([]);
 
-    // Basic validation
     const newErrors: string[] = [];
     if (!folderName) newErrors.push("Folder name is required");
     if (mediaType === "movie" && !movieFile) newErrors.push("Please select the movie file");
     if (mediaType === "movie" && movieFile && !movieFile.type.startsWith("video/")) newErrors.push("Invalid movie file");
-
     if (coverFile && !coverFile.type.startsWith("image/")) newErrors.push("Invalid cover file");
 
     if (newErrors.length) {
@@ -119,73 +118,123 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
       return;
     }
 
-    const fd = new FormData();
-    fd.append("mediaType", mediaType);
-    fd.append("folderName", folderName || `media-${Date.now()}`);
+    const normalizedFolder = folderName || `media-${Date.now()}`;
 
-    if (useInfoFile && infoFile) {
-      fd.append("infoFile", infoFile);
-    } else if (infoText) {
-      fd.append("info", infoText);
-    }
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const buildHeaders = (fileName: string, chunkIndex: number, totalChunks: number, filePath?: string) => {
+      const headers = new Headers();
+      headers.set("x-file-name", fileName);
+      headers.set("x-chunk-index", String(chunkIndex));
+      headers.set("x-total-chunks", String(totalChunks));
+      headers.set("x-folder-name", normalizedFolder);
+      if (filePath) headers.set("x-file-path", filePath);
+      return headers;
+    };
 
-    if (coverFile) fd.append("cover", coverFile);
+    const uploadChunk = async (chunk: Blob, fileName: string, chunkIndex: number, totalChunks: number, filePath?: string) => {
+      const headers = buildHeaders(fileName, chunkIndex, totalChunks, filePath);
+      let lastError: unknown;
 
-    if (mediaType === "movie") {
-      if (movieFile) fd.append("video", movieFile);
-    } else {
-      seasons.forEach((season) => {
-        season.files.forEach((f) => fd.append(`season-${season.id}`, f));
-      });
-    }
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        if (abortControllerRef.current?.signal.aborted) {
+          throw new Error("Upload aborted by user");
+        }
 
-    // Use XHR to track upload progress on the internal Next.js API route
-    setUploading(true);
-    setUploadProgress(0);
-    const xhr = new XMLHttpRequest();
-    xhrRef.current = xhr;
-    xhr.open("POST", "/api/upload");
-    xhr.upload.onprogress = (ev) => {
-      if (ev.lengthComputable) {
-        const percent = Math.round((ev.loaded / ev.total) * 100);
+        try {
+          const response = await fetch("/api/upload", {
+            method: "POST",
+            headers,
+            body: chunk,
+            signal: abortControllerRef.current?.signal,
+          });
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => null);
+            const message = data?.error || `${response.status} ${response.statusText}`;
+            throw new Error(message);
+          }
+
+          return;
+        } catch (error) {
+          lastError = error;
+          if (attempt < 3) {
+            await delay(500 * attempt);
+            continue;
+          }
+          throw lastError;
+        }
+      }
+    };
+
+    const uploadFileInChunks = async (file: File, filePath?: string, uploadedBytesStart = 0) => {
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      let uploadedBytes = uploadedBytesStart;
+
+      for (let index = 0; index < totalChunks; index += 1) {
+        const start = index * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+
+        await uploadChunk(chunk, file.name, index, totalChunks, filePath);
+        uploadedBytes += chunk.size;
+        const percent = Math.min(100, Math.round((uploadedBytes / file.size) * 100));
         setUploadProgress(percent);
       }
     };
 
-    xhr.onload = () => {
-      setUploading(false);
-      if (xhr.status >= 200 && xhr.status < 300) {
-        setTimeout(() => setUploadProgress(100), 100);
-        try {
-          toast.show({ title: "Upload completed", description: `"${folderName}" added.`, variant: "success" });
-        } catch {}
-        onClose();
-        setTimeout(() => window.location.reload(), 700);
+    const metadataForm = new FormData();
+    metadataForm.append("mediaType", mediaType);
+    metadataForm.append("folderName", normalizedFolder);
+
+    if (useInfoFile && infoFile) {
+      metadataForm.append("infoFile", infoFile);
+    } else if (infoText) {
+      metadataForm.append("info", infoText);
+    }
+
+    if (coverFile) {
+      metadataForm.append("cover", coverFile);
+    }
+
+    if (mediaType === "series") {
+      seasons.forEach((season) => {
+        season.files.forEach((file) => metadataForm.append(`season-${season.id}`, file));
+      });
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+    abortControllerRef.current = new AbortController();
+
+    try {
+      if (mediaType === "movie" && movieFile) {
+        await fetch("/api/upload", {
+          method: "POST",
+          body: metadataForm,
+          signal: abortControllerRef.current.signal,
+        });
+
+        await uploadFileInChunks(movieFile);
       } else {
-        let msg = `Upload failed: ${xhr.statusText || xhr.status}`;
-        try {
-          const data = JSON.parse(xhr.responseText);
-          if (data?.error) msg = `Upload failed: ${data.error}`;
-        } catch {
-          // keep generic message
-        }
-        setErrors([msg]);
-        try { toast.show({ title: "Error", description: msg, variant: "error" }); } catch {}
+        await fetch("/api/upload", {
+          method: "POST",
+          body: metadataForm,
+          signal: abortControllerRef.current.signal,
+        });
       }
-    };
-    xhr.onerror = () => {
+
+      setUploadProgress(100);
+      toast.show({ title: "Upload completed", description: `"${normalizedFolder}" added.`, variant: "success" });
+      onClose();
+      setTimeout(() => window.location.reload(), 700);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Upload failed";
+      setErrors([message]);
+      toast.show({ title: "Error", description: message, variant: "error" });
+    } finally {
       setUploading(false);
-      const msg = "Network error during upload";
-      setErrors([msg]);
-      try { toast.show({ title: "Error", description: msg, variant: "error" }); } catch {}
-    };
-    xhr.onabort = () => {
-      setUploading(false);
-      const msg = "Upload cancelled";
-      setErrors([msg]);
-      try { toast.show({ title: "Cancelled", description: msg, variant: "error" }); } catch {}
-    };
-    xhr.send(fd);
+      abortControllerRef.current = null;
+    }
   }
 
   return (

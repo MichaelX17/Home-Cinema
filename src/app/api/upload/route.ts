@@ -3,7 +3,16 @@ import path from "path";
 import { Readable } from "stream";
 import { NextResponse } from "next/server";
 
-// Mapeo de MIME types a extensiones (puedes ampliarlo según necesites)
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+export const runtime = "nodejs";
+
+const MEDIA_STORAGE_DIR = path.join(process.cwd(), "../videos-almacenamiento");
+
 const mimeToExt: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/jpg": ".jpg",
@@ -17,19 +26,15 @@ const mimeToExt: Record<string, string> = {
   "application/json": ".json",
 };
 
-// Obtener extensión a partir del MIME type
 const getExtensionFromMime = (mimeType?: string): string => {
   if (!mimeType) return "";
-  const normalized = mimeType.toLowerCase();
-  return mimeToExt[normalized] || "";
+  return mimeToExt[mimeType.toLowerCase()] || "";
 };
 
-// Sanitiza el nombre: elimina caracteres peligrosos, espacios, etc., pero conserva la extensión
 const sanitizeName = (value: unknown, fallbackExt = "") => {
   let name = String(value ?? "").trim();
   if (!name) name = `file-${Date.now()}`;
 
-  // Separar nombre base y extensión
   let ext = "";
   const lastDot = name.lastIndexOf(".");
   if (lastDot !== -1 && lastDot > 0 && lastDot < name.length - 1) {
@@ -39,14 +44,12 @@ const sanitizeName = (value: unknown, fallbackExt = "") => {
     ext = fallbackExt.startsWith(".") ? fallbackExt : `.${fallbackExt}`;
   }
 
-  // Limpiar solo el nombre base
   const cleanBase = name
-    .replace(/[/\\?%*:|"<>]/g, "-")
+    .replace(/[\/\\?%*:|"<>]/g, "-")
     .replace(/\s+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 150);
 
-  // Reconstruir nombre completo
   const finalName = cleanBase || `file-${Date.now()}`;
   return ext ? `${finalName}${ext}` : finalName;
 };
@@ -56,30 +59,102 @@ const safeFolderName = (folderName: unknown) => {
   return cleaned || `media-${Date.now()}`;
 };
 
-const writeFileFromStream = async (stream: NodeJS.ReadableStream, destPath: string) =>
+const writeFileFromStream = async (stream: NodeJS.ReadableStream, destPath: string, flags: string = "w") =>
   new Promise<void>((resolve, reject) => {
-    const writeStream = fs.createWriteStream(destPath);
+    const writeStream = fs.createWriteStream(destPath, { flags });
     stream.pipe(writeStream);
     writeStream.on("finish", resolve);
     writeStream.on("error", reject);
     stream.on("error", reject);
   });
 
-export const runtime = "nodejs";
+const getOriginalFilename = (
+  filename: unknown,
+  fieldname: string,
+  mimeType?: string
+): string => {
+  let original = "";
 
-export async function POST(req: Request) {
-  const headers = Object.fromEntries(req.headers.entries());
-  const contentType = String(headers["content-type"] || headers["Content-Type"] || "");
-  if (!contentType.includes("multipart/form-data")) {
+  if (typeof filename === "string") {
+    original = filename;
+  } else if (filename && typeof filename === "object") {
+    if ("name" in filename && typeof filename.name === "string") original = filename.name;
+    else if ("filename" in filename && typeof filename.filename === "string") original = filename.filename;
+  }
+
+  if (original.trim()) {
+    return original;
+  }
+
+  const ext = getExtensionFromMime(mimeType);
+  return `${fieldname}-${Date.now()}${ext}`;
+};
+
+const streamRequestBodyToFile = async (req: Request, destPath: string, append = false) => {
+  const bodyStream = Readable.fromWeb(req.body as any);
+  await writeFileFromStream(bodyStream, destPath, append ? "a" : "w");
+};
+
+const handleChunkUpload = async (req: Request) => {
+  const fileNameHeader = req.headers.get("x-file-name");
+  const chunkIndexHeader = req.headers.get("x-chunk-index");
+  const totalChunksHeader = req.headers.get("x-total-chunks");
+  const folderHeader = req.headers.get("x-folder-name");
+
+  if (!fileNameHeader || chunkIndexHeader === null || totalChunksHeader === null) {
     return NextResponse.json(
-      { ok: false, error: "Content-Type must be multipart/form-data" },
+      { ok: false, error: "Missing chunk headers x-file-name, x-chunk-index or x-total-chunks." },
       { status: 400 }
     );
   }
 
+  const chunkIndex = Number(chunkIndexHeader);
+  const totalChunks = Number(totalChunksHeader);
+  if (!Number.isInteger(chunkIndex) || !Number.isInteger(totalChunks) || totalChunks <= 0) {
+    return NextResponse.json({ ok: false, error: "Invalid chunk index or total chunks." }, { status: 400 });
+  }
+
+  const folderName = folderHeader ? safeFolderName(folderHeader) : "";
+  const targetDir = folderName ? path.join(MEDIA_STORAGE_DIR, folderName) : MEDIA_STORAGE_DIR;
+  fs.mkdirSync(targetDir, { recursive: true });
+
+  const safeFileName = sanitizeName(fileNameHeader);
+  const tempFilePath = path.join(targetDir, `${safeFileName}.part`);
+  const finalFilePath = path.join(targetDir, safeFileName);
+
+  try {
+    if (chunkIndex === 0 && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+
+    await streamRequestBodyToFile(req, tempFilePath, true);
+
+    if (chunkIndex === totalChunks - 1) {
+      if (fs.existsSync(finalFilePath)) {
+        fs.unlinkSync(finalFilePath);
+      }
+      fs.renameSync(tempFilePath, finalFilePath);
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Chunk upload failed", error);
+    return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
+  }
+};
+
+const handleMultipartUpload = async (req: Request) => {
+  const headers = Object.fromEntries(req.headers.entries());
+  const contentType = String(headers["content-type"] || headers["Content-Type"] || "");
+  if (!contentType.includes("multipart/form-data")) {
+    return NextResponse.json({ ok: false, error: "Content-Type must be multipart/form-data." }, { status: 400 });
+  }
+
+  fs.mkdirSync(MEDIA_STORAGE_DIR, { recursive: true });
+
   const rawBody = req.body;
   if (!rawBody) {
-    return NextResponse.json({ ok: false, error: "Request body is missing" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Request body is missing." }, { status: 400 });
   }
 
   const fields: Record<string, string> = {};
@@ -91,42 +166,12 @@ export async function POST(req: Request) {
   const busboy = BusboyFactory({ headers });
 
   let folderName = `media-${Date.now()}`;
-  let mediaType = "movie";
-  const mediaDirBase = path.join(process.cwd(), "../movies-files");
-  fs.mkdirSync(mediaDirBase, { recursive: true });
   let targetMediaDir = "";
 
   const createMediaDir = (rawFolderName: unknown) => {
     folderName = safeFolderName(rawFolderName);
-    targetMediaDir = path.join(mediaDirBase, folderName);
+    targetMediaDir = path.join(MEDIA_STORAGE_DIR, folderName);
     fs.mkdirSync(targetMediaDir, { recursive: true });
-  };
-
-  // Función mejorada para obtener el nombre original + extensión a partir del objeto file de busboy
-  const getOriginalFilename = (
-    filename: unknown,
-    fieldname: string,
-    mimeType?: string
-  ): string => {
-    let original = "";
-
-    // Intentar extraer string directo o propiedad 'name' / 'filename'
-    if (typeof filename === "string") {
-      original = filename;
-    } else if (filename && typeof filename === "object") {
-      if ("name" in filename && typeof filename.name === "string") original = filename.name;
-      else if ("filename" in filename && typeof filename.filename === "string")
-        original = filename.filename;
-    }
-
-    if (original.trim()) {
-      // Si el nombre ya tiene extensión, devolverlo tal cual
-      return original;
-    }
-
-    // Fallback: generar nombre genérico con timestamp y extensión según MIME
-    const ext = getExtensionFromMime(mimeType);
-    return `${fieldname}-${Date.now()}${ext}`;
   };
 
   busboy.on("field", (fieldname: string, value: unknown) => {
@@ -134,12 +179,9 @@ export async function POST(req: Request) {
     fields[fieldname] = stringValue;
     if (fieldname === "folderName") {
       createMediaDir(stringValue);
-    } else if (fieldname === "mediaType") {
-      mediaType = stringValue || "movie";
     }
   });
 
-  // Añadimos los parámetros encoding y mimetype (busboy los envía)
   busboy.on(
     "file",
     (
@@ -149,52 +191,14 @@ export async function POST(req: Request) {
       encoding: string,
       mimetype: string
     ) => {
-      // Obtener nombre original con extensión (si es posible)
-      const rawFilename = getOriginalFilename(filename, fieldname, mimetype);
-      const safeFilename = sanitizeName(rawFilename, getExtensionFromMime(mimetype));
-
       if (!targetMediaDir) {
         createMediaDir(fields.folderName || `media-${Date.now()}`);
       }
 
-      // Archivo de información (info.json)
-      if (fieldname === "infoFile") {
-        // Si el archivo subido es un JSON, forzamos el nombre info.json
-        const dest = path.join(
-          targetMediaDir,
-          rawFilename.toLowerCase().endsWith(".json") ? "info.json" : safeFilename
-        );
-        writePromises.push(writeFileFromStream(file, dest));
-        return;
-      }
-
-      // Cover o poster
-      if (fieldname === "cover") {
-        const dest = path.join(targetMediaDir, safeFilename);
-        writePromises.push(writeFileFromStream(file, dest));
-        return;
-      }
-
-      // Video principal (para películas)
-      if (fieldname === "video") {
-        const dest = path.join(targetMediaDir, safeFilename);
-        writePromises.push(writeFileFromStream(file, dest));
-        return;
-      }
-
-      // Episodios de series (fieldname: season-1, season-2...)
-      if (fieldname.startsWith("season-")) {
-        const season = fieldname.split("-")[1] || "1";
-        const seasonDir = path.join(targetMediaDir, `season${season}`);
-        fs.mkdirSync(seasonDir, { recursive: true });
-        const dest = path.join(seasonDir, safeFilename);
-        writePromises.push(writeFileFromStream(file, dest));
-        return;
-      }
-
-      // Cualquier otro archivo se guarda en la raíz de la carpeta
-      const dest = path.join(targetMediaDir, safeFilename);
-      writePromises.push(writeFileFromStream(file, dest));
+      const rawFilename = getOriginalFilename(filename, fieldname, mimetype);
+      const safeFilename = sanitizeName(rawFilename, getExtensionFromMime(mimetype));
+      const destPath = path.join(targetMediaDir, safeFilename);
+      writePromises.push(writeFileFromStream(file, destPath));
     }
   );
 
@@ -212,22 +216,21 @@ export async function POST(req: Request) {
       createMediaDir(fields.folderName || `media-${Date.now()}`);
     }
 
-    const infoPath = path.join(targetMediaDir, "info.json");
     if (fields.info) {
+      const infoPath = path.join(targetMediaDir, "info.json");
       fs.writeFileSync(infoPath, fields.info, "utf-8");
-    }
-
-    if (!fs.existsSync(infoPath)) {
-      const fallback = {
-        title: folderName.replace(/[-_]/g, " ").trim(),
-        type: mediaType === "series" ? "series" : "movie",
-      };
-      fs.writeFileSync(infoPath, JSON.stringify(fallback, null, 2), "utf-8");
     }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("Upload error", err);
+    console.error("Metadata upload failed", err);
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
+};
+
+export async function POST(req: Request) {
+  if (req.headers.has("x-file-name")) {
+    return handleChunkUpload(req);
+  }
+  return handleMultipartUpload(req);
 }
