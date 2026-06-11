@@ -53,7 +53,8 @@ const createWebStreamFromNode = (nodeStream: fs.ReadStream, request: NextRequest
 
       nodeStream.on("data", (chunk) => {
         if (closed) return;
-        controller.enqueue(new Uint8Array(chunk));
+        const data = typeof chunk === "string" ? new TextEncoder().encode(chunk) : new Uint8Array(chunk);
+        controller.enqueue(data);
       });
 
       nodeStream.on("end", closeController);
