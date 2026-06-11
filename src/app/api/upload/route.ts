@@ -3,12 +3,6 @@ import path from "path";
 import { Readable } from "stream";
 import { NextResponse } from "next/server";
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
 export const runtime = "nodejs";
 
 const MEDIA_STORAGE_DIR = path.join(process.cwd(), "../videos-almacenamiento");

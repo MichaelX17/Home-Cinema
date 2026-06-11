@@ -420,7 +420,7 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
             </div>
 
             <CardFooter className="justify-end gap-3 p-0">
-              <Button variant="ghost" onClick={() => { if (!uploading) onClose(); else xhrRef.current?.abort(); }} type="button">{uploading ? "Cancelar" : "Cancelar"}</Button>
+              <Button variant="ghost" onClick={() => { if (!uploading) onClose(); else abortControllerRef.current?.abort(); }} type="button">{uploading ? "Cancelar" : "Cancelar"}</Button>
               <Button type="submit" disabled={uploading}>{uploading ? `Subiendo ${uploadProgress}%` : "Subir"}</Button>
             </CardFooter>
           </div>
