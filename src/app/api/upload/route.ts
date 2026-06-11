@@ -84,11 +84,6 @@ const getOriginalFilename = (
   return `${fieldname}-${Date.now()}${ext}`;
 };
 
-const streamRequestBodyToFile = async (req: Request, destPath: string, append = false) => {
-  const bodyStream = Readable.fromWeb(req.body as any);
-  await writeFileFromStream(bodyStream, destPath, append ? "a" : "w");
-};
-
 const handleChunkUpload = async (req: Request) => {
   const fileNameHeader = req.headers.get("x-file-name");
   const chunkIndexHeader = req.headers.get("x-chunk-index");
@@ -121,7 +116,9 @@ const handleChunkUpload = async (req: Request) => {
       fs.unlinkSync(tempFilePath);
     }
 
-    await streamRequestBodyToFile(req, tempFilePath, true);
+    const arrayBuffer = await req.arrayBuffer();
+    const chunkBuffer = Buffer.from(arrayBuffer);
+    fs.writeFileSync(tempFilePath, chunkBuffer, { flag: "a" });
 
     if (chunkIndex === totalChunks - 1) {
       if (fs.existsSync(finalFilePath)) {
@@ -138,27 +135,15 @@ const handleChunkUpload = async (req: Request) => {
 };
 
 const handleMultipartUpload = async (req: Request) => {
-  const headers = Object.fromEntries(req.headers.entries());
-  const contentType = String(headers["content-type"] || headers["Content-Type"] || "");
+  const contentType = String(req.headers.get("content-type") || "");
   if (!contentType.includes("multipart/form-data")) {
     return NextResponse.json({ ok: false, error: "Content-Type must be multipart/form-data." }, { status: 400 });
   }
 
   fs.mkdirSync(MEDIA_STORAGE_DIR, { recursive: true });
 
-  const rawBody = req.body;
-  if (!rawBody) {
-    return NextResponse.json({ ok: false, error: "Request body is missing." }, { status: 400 });
-  }
-
+  const formData = await req.formData();
   const fields: Record<string, string> = {};
-  const writePromises: Promise<void>[] = [];
-
-  const nodeBody = Readable.fromWeb(rawBody as any);
-  const BusboyModule = await import("busboy");
-  const BusboyFactory = (BusboyModule && (BusboyModule.default || BusboyModule)) as any;
-  const busboy = BusboyFactory({ headers });
-
   let folderName = `media-${Date.now()}`;
   let targetMediaDir = "";
 
@@ -168,43 +153,33 @@ const handleMultipartUpload = async (req: Request) => {
     fs.mkdirSync(targetMediaDir, { recursive: true });
   };
 
-  busboy.on("field", (fieldname: string, value: unknown) => {
-    const stringValue = String(value ?? "");
-    fields[fieldname] = stringValue;
-    if (fieldname === "folderName") {
-      createMediaDir(stringValue);
-    }
-  });
-
-  busboy.on(
-    "file",
-    (
-      fieldname: string,
-      file: NodeJS.ReadableStream,
-      filename: unknown,
-      encoding: string,
-      mimetype: string
-    ) => {
-      if (!targetMediaDir) {
-        createMediaDir(fields.folderName || `media-${Date.now()}`);
-      }
-
-      const rawFilename = getOriginalFilename(filename, fieldname, mimetype);
-      const safeFilename = sanitizeName(rawFilename, getExtensionFromMime(mimetype));
-      const destPath = path.join(targetMediaDir, safeFilename);
-      writePromises.push(writeFileFromStream(file, destPath));
-    }
-  );
-
-  const busboyPromise = new Promise<void>((resolve, reject) => {
-    busboy.on("finish", resolve);
-    busboy.on("error", reject);
-    nodeBody.pipe(busboy);
-  });
+  const appendFileFromFormEntry = async (entry: File, destPath: string) => {
+    const stream = entry.stream();
+    await writeFileFromStream(stream as any, destPath);
+  };
 
   try {
-    await busboyPromise;
-    await Promise.all(writePromises);
+    for (const [key, value] of formData.entries()) {
+      if (typeof value === "string") {
+        fields[key] = value;
+        if (key === "folderName") {
+          createMediaDir(value);
+        }
+        continue;
+      }
+
+      if (value instanceof File) {
+        if (!targetMediaDir) {
+          createMediaDir(fields.folderName || `media-${Date.now()}`);
+        }
+
+        const rawFilename = value.name || `${key}-${Date.now()}`;
+        const safeFilename = sanitizeName(rawFilename, getExtensionFromMime(value.type));
+        const destPath = path.join(targetMediaDir, safeFilename);
+        await appendFileFromFormEntry(value, destPath);
+        continue;
+      }
+    }
 
     if (!targetMediaDir) {
       createMediaDir(fields.folderName || `media-${Date.now()}`);

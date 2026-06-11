@@ -141,7 +141,8 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
         }
 
         try {
-          const response = await fetch("/api/upload", {
+          headers.set("content-type", "application/octet-stream");
+      const response = await fetch("/api/upload", {
             method: "POST",
             headers,
             body: chunk,
@@ -207,20 +208,20 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
     abortControllerRef.current = new AbortController();
 
     try {
-      if (mediaType === "movie" && movieFile) {
-        await fetch("/api/upload", {
-          method: "POST",
-          body: metadataForm,
-          signal: abortControllerRef.current.signal,
-        });
+      const metadataResponse = await fetch("/api/upload", {
+        method: "POST",
+        body: metadataForm,
+        signal: abortControllerRef.current.signal,
+      });
 
+      if (!metadataResponse.ok) {
+        const metadataBody = await metadataResponse.json().catch(() => null);
+        const metadataError = metadataBody?.error || `${metadataResponse.status} ${metadataResponse.statusText}`;
+        throw new Error(`Metadata upload failed: ${metadataError}`);
+      }
+
+      if (mediaType === "movie" && movieFile) {
         await uploadFileInChunks(movieFile);
-      } else {
-        await fetch("/api/upload", {
-          method: "POST",
-          body: metadataForm,
-          signal: abortControllerRef.current.signal,
-        });
       }
 
       setUploadProgress(100);
