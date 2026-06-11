@@ -123,11 +123,11 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
     const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
     const buildHeaders = (fileName: string, chunkIndex: number, totalChunks: number, filePath?: string) => {
       const headers = new Headers();
-      headers.set("x-file-name", fileName);
+      headers.set("x-file-name", encodeURIComponent(fileName));
       headers.set("x-chunk-index", String(chunkIndex));
       headers.set("x-total-chunks", String(totalChunks));
-      headers.set("x-folder-name", normalizedFolder);
-      if (filePath) headers.set("x-file-path", filePath);
+      headers.set("x-folder-name", encodeURIComponent(normalizedFolder));
+      if (filePath) headers.set("x-file-path", encodeURIComponent(filePath));
       return headers;
     };
 

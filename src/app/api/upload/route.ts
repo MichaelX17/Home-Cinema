@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-const MEDIA_STORAGE_DIR = path.join(process.cwd(), "../videos-almacenamiento");
+const MEDIA_STORAGE_DIR = path.join(process.cwd(), "../movies-files");
 
 const mimeToExt: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -72,15 +72,6 @@ const writeFileFromStream = async (stream: NodeJS.ReadableStream, destPath: stri
     stream.on("error", reject);
   });
 
-const streamRequestBodyToFile = async (req: Request, destPath: string, append = false) => {
-  if (!req.body) {
-    throw new Error("Request body is missing");
-  }
-
-  const bodyStream = Readable.fromWeb(req.body as any);
-  await writeFileFromStream(bodyStream, destPath, append ? "a" : "w");
-};
-
 const getOriginalFilename = (
   filename: unknown,
   fieldname: string,
@@ -104,12 +95,12 @@ const getOriginalFilename = (
 };
 
 const handleChunkUpload = async (req: Request) => {
-  const fileNameHeader = req.headers.get("x-file-name");
+  const rawFileNameHeader = req.headers.get("x-file-name");
   const chunkIndexHeader = req.headers.get("x-chunk-index");
   const totalChunksHeader = req.headers.get("x-total-chunks");
-  const folderHeader = req.headers.get("x-folder-name");
+  const rawFolderHeader = req.headers.get("x-folder-name");
 
-  if (!fileNameHeader || chunkIndexHeader === null || totalChunksHeader === null) {
+  if (!rawFileNameHeader || chunkIndexHeader === null || totalChunksHeader === null) {
     return NextResponse.json(
       { ok: false, error: "Missing chunk headers x-file-name, x-chunk-index or x-total-chunks." },
       { status: 400 }
@@ -122,11 +113,13 @@ const handleChunkUpload = async (req: Request) => {
     return NextResponse.json({ ok: false, error: "Invalid chunk index or total chunks." }, { status: 400 });
   }
 
-  const folderName = folderHeader ? safeFolderName(folderHeader) : "";
+  const fileNameHeader = decodeURIComponent(rawFileNameHeader);
+  const folderName = rawFolderHeader ? safeFolderName(decodeURIComponent(rawFolderHeader)) : "";
   const targetDir = folderName ? path.join(MEDIA_STORAGE_DIR, folderName) : MEDIA_STORAGE_DIR;
   fs.mkdirSync(targetDir, { recursive: true });
 
-  const filePathHeader = req.headers.get("x-file-path") || fileNameHeader;
+  const rawFilePathHeader = req.headers.get("x-file-path");
+  const filePathHeader = rawFilePathHeader ? decodeURIComponent(rawFilePathHeader) : fileNameHeader;
   const safeRelativePath = sanitizeRelativePath(filePathHeader);
   if (!safeRelativePath) {
     return NextResponse.json({ ok: false, error: "Invalid file path." }, { status: 400 });
@@ -143,7 +136,9 @@ const handleChunkUpload = async (req: Request) => {
       fs.unlinkSync(tempFilePath);
     }
 
-    await streamRequestBodyToFile(req, tempFilePath, true);
+    const rawBody = await req.arrayBuffer();
+    const chunkBuffer = Buffer.from(rawBody);
+    fs.writeFileSync(tempFilePath, chunkBuffer, { flag: "a" });
 
     if (chunkIndex === totalChunks - 1) {
       if (fs.existsSync(finalFilePath)) {
