@@ -6,20 +6,20 @@ export const dynamic = "force-dynamic";
 
 export function GET() {
   try {
-    const mediaDir = path.join(process.cwd(), "public/movies");
+    const mediaBaseDir = path.join(process.cwd(), "../movies-files");
 
-    if (!fs.existsSync(mediaDir)) {
+    if (!fs.existsSync(mediaBaseDir)) {
       return NextResponse.json([]);
     }
 
-    const folders = fs.readdirSync(mediaDir).filter((folder) => {
-      const folderPath = path.join(mediaDir, folder);
+    const folders = fs.readdirSync(mediaBaseDir).filter((folder) => {
+      const folderPath = path.join(mediaBaseDir, folder);
       return fs.existsSync(folderPath) && fs.statSync(folderPath).isDirectory();
     });
 
     const items = folders
       .map((folder) => {
-        const folderPath = path.join(mediaDir, folder);
+        const folderPath = path.join(mediaBaseDir, folder);
         const files = fs.readdirSync(folderPath);
 
         const coverFile = files.find(
@@ -72,8 +72,15 @@ export function GET() {
           year: metadata.year,
           duration: metadata.duration,
           description: metadata.description,
-          cover: coverFile ? `/movies/${folder}/${coverFile}` : "",
-          video: type === "movie" ? (effectiveVideoFile ? `/movies/${folder}/${effectiveVideoFile}` : "") : undefined,
+          cover: coverFile
+            ? `/api/videos/${encodeURIComponent(`${folder}/${coverFile}`)}`
+            : "",
+          video:
+            type === "movie"
+              ? effectiveVideoFile
+                ? `/api/videos/${encodeURIComponent(`${folder}/${effectiveVideoFile}`)}`
+                : ""
+              : undefined,
           type,
         };
       })

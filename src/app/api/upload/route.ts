@@ -92,7 +92,8 @@ export async function POST(req: Request) {
 
   let folderName = `media-${Date.now()}`;
   let mediaType = "movie";
-  const mediaDirBase = path.join(process.cwd(), "public", "movies");
+  const mediaDirBase = path.join(process.cwd(), "../movies-files");
+  fs.mkdirSync(mediaDirBase, { recursive: true });
   let targetMediaDir = "";
 
   const createMediaDir = (rawFolderName: unknown) => {

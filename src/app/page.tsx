@@ -1,7 +1,5 @@
-import HomeClient from "./components/HomeClient";
-
-export const dynamic = "force-dynamic";
+import HomeClientNoSSR from "@/components/HomeClientNoSSR";
 
 export default function Home() {
-  return <HomeClient />;
+  return <HomeClientNoSSR />;
 }

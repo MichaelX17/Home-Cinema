@@ -4,7 +4,7 @@ import path from "path";
 // Obtener datos de una media específica (película o serie)
 export function getMedia(slug: string) {
   try {
-    const mediaDir = path.join(process.cwd(), "public/movies", slug);
+    const mediaDir = path.join(process.cwd(), "../movies-files", slug);
 
     if (!fs.existsSync(mediaDir)) {
       return null;
@@ -67,8 +67,12 @@ export function getMedia(slug: string) {
         director: metadata.director,
         actors: metadata.actors || [],
         rating: metadata.rating,
-        cover: coverFile ? `/movies/${slug}/${coverFile}` : "",
-        video: effectiveVideoFile ? `/movies/${slug}/${effectiveVideoFile}` : "",
+        cover: coverFile
+          ? `/api/videos/${encodeURIComponent(`${slug}/${coverFile}`)}`
+          : "",
+        video: effectiveVideoFile
+          ? `/api/videos/${encodeURIComponent(`${slug}/${effectiveVideoFile}`)}`
+          : "",
         type: "movie",
       };
     }
@@ -108,7 +112,7 @@ export function getMedia(slug: string) {
           .map((file, epIndex) => ({
             number: epIndex + 1,
             title: `Episode ${epIndex + 1}`,
-            file: `/movies/${slug}/${seasonFolder}/${file}`,
+            file: `/api/videos/${encodeURIComponent(`${slug}/${seasonFolder}/${file}`)}`,
             seasonNumber: index + 1,
           }));
 
@@ -127,7 +131,9 @@ export function getMedia(slug: string) {
         director: metadata.director,
         actors: metadata.actors || [],
         rating: metadata.rating,
-        cover: coverFile ? `/movies/${slug}/${coverFile}` : "",
+        cover: coverFile
+          ? `/api/videos/${encodeURIComponent(`${slug}/${coverFile}`)}`
+          : "",
         type: "series",
         seasons,
         totalSeasons: seasons.length,
@@ -144,7 +150,7 @@ export function getMedia(slug: string) {
 
 // Generar rutas estáticas para todas las películas y series
 export async function generateStaticParams() {
-  const moviesDir = path.join(process.cwd(), "public/movies");
+  const moviesDir = path.join(process.cwd(), "../movies-files");
 
   if (!fs.existsSync(moviesDir)) {
     return [];
