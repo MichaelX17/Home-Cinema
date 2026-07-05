@@ -17,15 +17,17 @@ interface MediaItem {
 
 interface MovieCatalogProps {
   mediaItems: MediaItem[];
+  onEdit: (item: MediaItem) => void;
+  onDelete: (item: MediaItem) => void;
 }
 
-export default function MovieCatalog({ mediaItems }: MovieCatalogProps) {
+export default function MovieCatalog({ mediaItems, onEdit, onDelete }: MovieCatalogProps) {
   return (
     <div>
       {/* Media grid con responsive design actualizado */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
         {mediaItems.map((item) => (
-          <MovieCard key={item.id} item={item} />
+          <MovieCard key={item.id} item={item} onEdit={onEdit} onDelete={onDelete} />
         ))}
       </div>
 

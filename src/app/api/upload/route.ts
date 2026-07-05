@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import { Readable } from "stream";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -39,7 +38,7 @@ const sanitizeName = (value: unknown, fallbackExt = "") => {
   }
 
   const cleanBase = name
-    .replace(/[\/\\?%*:|"<>]/g, "-")
+    .replace(/[\\/\\?%*:|"<>]/g, "-")
     .replace(/\s+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 150);
@@ -63,35 +62,28 @@ const sanitizeRelativePath = (rawPath: string) => {
   return segments.join(path.sep);
 };
 
-const writeFileFromStream = async (stream: NodeJS.ReadableStream, destPath: string, flags: string = "w") =>
-  new Promise<void>((resolve, reject) => {
-    const writeStream = fs.createWriteStream(destPath, { flags });
-    stream.pipe(writeStream);
-    writeStream.on("finish", resolve);
-    writeStream.on("error", reject);
-    stream.on("error", reject);
-  });
+const removeMatchingEntries = (directoryPath: string, predicate: (entryName: string) => boolean) => {
+  if (!fs.existsSync(directoryPath)) return;
 
-const getOriginalFilename = (
-  filename: unknown,
-  fieldname: string,
-  mimeType?: string
-): string => {
-  let original = "";
-
-  if (typeof filename === "string") {
-    original = filename;
-  } else if (filename && typeof filename === "object") {
-    if ("name" in filename && typeof filename.name === "string") original = filename.name;
-    else if ("filename" in filename && typeof filename.filename === "string") original = filename.filename;
+  for (const entry of fs.readdirSync(directoryPath)) {
+    const entryPath = path.join(directoryPath, entry);
+    if (predicate(entry)) {
+      fs.rmSync(entryPath, { recursive: true, force: true });
+    }
   }
+};
 
-  if (original.trim()) {
-    return original;
-  }
+const removeExistingImages = (directoryPath: string) => {
+  removeMatchingEntries(directoryPath, (entryName) => /\.(jpg|jpeg|png|webp)$/i.test(entryName));
+};
 
-  const ext = getExtensionFromMime(mimeType);
-  return `${fieldname}-${Date.now()}${ext}`;
+const removeExistingVideoFiles = (directoryPath: string) => {
+  removeMatchingEntries(directoryPath, (entryName) => /\.(mp4|mkv|avi|mov|webm)$/i.test(entryName));
+};
+
+const removeExistingSeriesMedia = (directoryPath: string) => {
+  removeMatchingEntries(directoryPath, (entryName) => entryName.toLowerCase().includes("season"));
+  removeExistingVideoFiles(directoryPath);
 };
 
 const handleChunkUpload = async (req: Request) => {
@@ -101,10 +93,7 @@ const handleChunkUpload = async (req: Request) => {
   const rawFolderHeader = req.headers.get("x-folder-name");
 
   if (!rawFileNameHeader || chunkIndexHeader === null || totalChunksHeader === null) {
-    return NextResponse.json(
-      { ok: false, error: "Missing chunk headers x-file-name, x-chunk-index or x-total-chunks." },
-      { status: 400 }
-    );
+    return NextResponse.json({ ok: false, error: "Missing chunk headers x-file-name, x-chunk-index or x-total-chunks." }, { status: 400 });
   }
 
   const chunkIndex = Number(chunkIndexHeader);
@@ -164,6 +153,7 @@ const handleMultipartUpload = async (req: Request) => {
 
   const formData = await req.formData();
   const fields: Record<string, string> = {};
+  const uploadedFiles: Array<{ fieldName: string; file: File }> = [];
   let folderName = `media-${Date.now()}`;
   let targetMediaDir = "";
 
@@ -182,27 +172,55 @@ const handleMultipartUpload = async (req: Request) => {
     for (const [key, value] of formData.entries()) {
       if (typeof value === "string") {
         fields[key] = value;
-        if (key === "folderName") {
-          createMediaDir(value);
-        }
         continue;
       }
 
       if (value instanceof File) {
-        if (!targetMediaDir) {
-          createMediaDir(fields.folderName || `media-${Date.now()}`);
-        }
-
-        const rawFilename = value.name || `${key}-${Date.now()}`;
-        const safeFilename = sanitizeName(rawFilename, getExtensionFromMime(value.type));
-        const destPath = path.join(targetMediaDir, safeFilename);
-        await appendFileFromFormEntry(value, destPath);
-        continue;
+        uploadedFiles.push({ fieldName: key, file: value });
       }
     }
 
+    const mode = fields.mode === "edit" ? "edit" : "create";
+    const mediaType = fields.mediaType === "series" ? "series" : "movie";
+    const replaceMedia = fields.replaceMedia === "true";
+    const existingFolder = fields.existingFolder || "";
+
+    if (mode === "edit") {
+      const sourceFolder = safeFolderName(existingFolder || fields.folderName || "media");
+      const sourceDir = path.join(MEDIA_STORAGE_DIR, sourceFolder);
+      const targetFolder = safeFolderName(fields.folderName || existingFolder || sourceFolder);
+      const resolvedTargetDir = path.join(MEDIA_STORAGE_DIR, targetFolder);
+
+      if (fs.existsSync(sourceDir) && sourceFolder !== targetFolder) {
+        if (fs.existsSync(resolvedTargetDir)) {
+          throw new Error("Target folder already exists");
+        }
+        fs.renameSync(sourceDir, resolvedTargetDir);
+      }
+
+      targetMediaDir = fs.existsSync(resolvedTargetDir) ? resolvedTargetDir : sourceDir;
+      fs.mkdirSync(targetMediaDir, { recursive: true });
+
+      if (replaceMedia && mediaType !== "series") {
+        removeExistingVideoFiles(targetMediaDir);
+      }
+    } else {
+      createMediaDir(fields.folderName || folderName);
+    }
+
     if (!targetMediaDir) {
-      createMediaDir(fields.folderName || `media-${Date.now()}`);
+      createMediaDir(fields.folderName || folderName);
+    }
+
+    for (const { fieldName, file } of uploadedFiles) {
+      if (mode === "edit" && fieldName === "cover") {
+        removeExistingImages(targetMediaDir);
+      }
+
+      const rawFilename = file.name || `${fieldName}-${Date.now()}`;
+      const safeFilename = sanitizeName(rawFilename, getExtensionFromMime(file.type));
+      const destPath = path.join(targetMediaDir, safeFilename);
+      await appendFileFromFormEntry(file, destPath);
     }
 
     if (fields.info) {
