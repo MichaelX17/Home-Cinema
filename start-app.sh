@@ -37,7 +37,7 @@ done
 cd "$APP_DIR" || error "No se pudo entrar a $APP_DIR"
 log "Directorio actual: $(pwd)"
 
-# Cargar variables de entorno adicionales (opcional)
+# Cargar .env.production si existe (opcional)
 if [ -f ".env.production" ]; then
   log "Cargando .env.production"
   set -a
@@ -101,7 +101,7 @@ else
   log "Puerto $PORT libre"
 fi
 
-# --- 4. Iniciar aplicación en foreground (para que PM2 lo gestione) ---
+# --- 4. Iniciar aplicación en foreground (con variable de entorno) ---
 export NODE_ENV=${NODE_ENV:-production}
-log "Iniciando Next.js en el puerto $PORT..."
-exec pnpm run start -- --port "$PORT" --hostname 0.0.0.0
+log "Iniciando Next.js en el puerto $PORT (desde variable de entorno)"
+exec pnpm run start
