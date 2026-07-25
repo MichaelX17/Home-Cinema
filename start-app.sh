@@ -13,79 +13,54 @@ log() {
 
 error() {
   log "ERROR: $*" >&2
+  exit 1
 }
 
-log "Iniciando script de despliegue"
+log "Iniciando script de despliegue (modo conservador)"
 
-# --- 0. Preparar Entorno ---
+# --- Preparar Entorno ---
 if [ -d "$FNM_DIR" ]; then
   export PATH="$FNM_DIR:$PATH"
   eval "$(fnm env --use-on-cd)"
   export PATH="$HOME/.local/share/pnpm:$PATH"
 else
   error "fnm no encontrado en $FNM_DIR"
-  exit 1
 fi
 
-cd "$APP_DIR" || { error "No se pudo entrar a $APP_DIR"; exit 1; }
+# Verificar comandos necesarios
+for cmd in git pnpm; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    error "$cmd no está en el PATH"
+  fi
+done
+
+cd "$APP_DIR" || error "No se pudo entrar a $APP_DIR"
 log "Directorio actual: $(pwd)"
 
-# --- 1. GIT UPDATE ---
-log "Actualizando repositorio..."
-git fetch origin "$BRANCH"
+# --- 1. GIT: Priorizar remoto (descartar cambios locales) ---
+log "Actualizando repositorio desde remoto (priorizando la nube)"
+git fetch origin "$BRANCH" || error "Falló git fetch"
 
-if git rev-parse --verify origin/"$BRANCH" >/dev/null 2>&1; then
-  git checkout "$BRANCH"
-
-  LOCAL=$(git rev-parse HEAD)
-  REMOTE=$(git rev-parse origin/"$BRANCH")
-
-  if [ "$LOCAL" != "$REMOTE" ]; then
-    log "Hay cambios nuevos, actualizando..."
-    git pull origin "$BRANCH"
-    UPDATE_OK=true
-  else
-    log "No hay cambios nuevos"
-    UPDATE_OK=false
-  fi
-else
-  log "Advertencia: no se pudo verificar rama remota"
-  UPDATE_OK=false
+# Verificar que la rama remota exista
+if ! git rev-parse --verify origin/"$BRANCH" >/dev/null 2>&1; then
+  error "La rama remota origin/$BRANCH no existe"
 fi
 
-# --- 2. DEPENDENCIAS ---
-INSTALL_OK=false
+# Forzar que el directorio refleje exactamente el remoto (descarta cambios locales)
+git reset --hard origin/"$BRANCH" || error "Falló git reset --hard"
+# Asegurarse de estar en la rama correcta (por si no existía localmente)
+git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" origin/"$BRANCH"
+# Pull por si acaso (aunque ya estamos sincronizados)
+git pull --ff-only origin "$BRANCH" || log "Advertencia: pull no necesario (ya actualizado)"
 
-if [ "$UPDATE_OK" = true ]; then
-  log "Instalando dependencias con pnpm..."
-  if command -v pnpm >/dev/null 2>&1; then
-    pnpm install
-    INSTALL_OK=true
-  else
-    error "pnpm no está en el PATH"
-    exit 1
-  fi
-else
-  if [ -d "node_modules" ]; then
-    log "Se omite instalación; node_modules ya existe"
-    INSTALL_OK=true
-  else
-    error "No hay cambios y node_modules no existe; no se puede continuar"
-    exit 1
-  fi
-fi
+# --- 2. Instalación y build SIEMPRE (para garantizar estado) ---
+log "Instalando dependencias con pnpm (siempre)..."
+pnpm install || error "Falló pnpm install"
 
-# --- 3. BUILD ---
-if [ "$INSTALL_OK" = true ]; then
-  log "Ejecutando build..."
-  pnpm run build
-else
-  error "Instalación de dependencias fallida"
-  exit 1
-fi
+log "Ejecutando build (siempre)..."
+pnpm run build || error "Falló el build"
 
-# --- 4. START ---
-log "Iniciando aplicación con pnpm start..."
+# --- 3. Iniciar aplicación en foreground (para que PM2 lo gestione) ---
+log "Iniciando aplicación con pnpm start (en foreground para PM2)..."
 export NODE_ENV=production
 exec pnpm run start
-
