@@ -36,6 +36,8 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
   const [infoFile, setInfoFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedEpisodes, setUploadedEpisodes] = useState(0);
+  const [totalEpisodes, setTotalEpisodes] = useState(0);
   const [uploading, setUploading] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -62,6 +64,8 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
     setInfoFile(null);
     setErrors([]);
     setUploadProgress(0);
+    setUploadedEpisodes(0);
+    setTotalEpisodes(0);
     setUploading(false);
   };
 
@@ -219,9 +223,10 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
       }
     };
 
-    const uploadFileInChunks = async (file: File, filePath?: string, uploadedBytesStart = 0) => {
+    let uploadedBytesTotal = 0;
+
+    const uploadFileInChunks = async (file: File, filePath?: string) => {
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-      let uploadedBytes = uploadedBytesStart;
 
       for (let index = 0; index < totalChunks; index += 1) {
         const start = index * CHUNK_SIZE;
@@ -229,8 +234,9 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
         const chunk = file.slice(start, end);
 
         await uploadChunk(chunk, file.name, index, totalChunks, filePath);
-        uploadedBytes += chunk.size;
-        const percent = Math.min(100, Math.round((uploadedBytes / file.size) * 100));
+        uploadedBytesTotal += chunk.size;
+
+        const percent = totalBytes > 0 ? Math.min(100, Math.round((uploadedBytesTotal / totalBytes) * 100)) : 100;
         setUploadProgress(percent);
       }
     };
@@ -258,6 +264,10 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
 
     const uploadFiles: Array<{ file: File; path: string }> = [];
 
+    if (mediaType === "movie" && movieFile) {
+      uploadFiles.push({ file: movieFile, path: movieFile.name });
+    }
+
     if (mediaType === "series") {
       seasons.forEach((season) => {
         season.files.forEach((file) => {
@@ -265,6 +275,10 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
         });
       });
     }
+
+    const totalBytes = uploadFiles.reduce((sum, item) => sum + item.file.size, 0);
+    setTotalEpisodes(uploadFiles.length);
+    setUploadedEpisodes(0);
 
     setUploading(true);
     setUploadProgress(0);
@@ -283,12 +297,15 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
         throw new Error(`Metadata upload failed: ${metadataError}`);
       }
 
-      if (mediaType === "movie" && movieFile) {
-        uploadFiles.push({ file: movieFile, path: movieFile.name });
-      }
+      const totalBytes = uploadFiles.reduce((sum, item) => sum + item.file.size, 0);
+      setTotalEpisodes(uploadFiles.length);
+      setUploadedEpisodes(0);
 
       for (const { file, path } of uploadFiles) {
         await uploadFileInChunks(file, path);
+        if (mediaType === "series") {
+          setUploadedEpisodes((prev) => prev + 1);
+        }
       }
 
       setUploadProgress(100);
@@ -486,7 +503,13 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
                 <div className="h-2 overflow-hidden rounded-full bg-muted">
                   <div className="h-full bg-primary transition-all" style={{ width: `${uploadProgress}%` }} />
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">{uploading ? `Uploading ${uploadProgress}%` : "Ready"}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {uploading ? (
+                    mediaType === "series" && totalEpisodes > 0
+                      ? `Uploading ${uploadProgress}% (${Math.min(uploadedEpisodes + 1, totalEpisodes)}/${totalEpisodes})`
+                      : `Uploading ${uploadProgress}%`
+                  ) : "Ready"}
+                </div>
               </div>
 
               <CardFooter className="justify-between gap-3 p-0">
