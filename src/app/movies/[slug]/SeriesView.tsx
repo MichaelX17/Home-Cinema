@@ -7,16 +7,17 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import VideoPlayer from "@/app/components/VideoPlayer";
 import { Play, Tv, Calendar, Users, X } from "lucide-react";
+import type { SeriesDetail, SeasonInfo, EpisodeInfo } from "@/types/media";
 
-export default function SeriesView({ media }: { media: any }) {
-  const [selectedEpisode, setSelectedEpisode] = useState<any>(null);
+export default function SeriesView({ media }: { media: SeriesDetail }) {
+  const [selectedEpisode, setSelectedEpisode] = useState<EpisodeInfo | null>(null);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  const handlePlayEpisode = (episode: any) => {
+  const handlePlayEpisode = (episode: EpisodeInfo) => {
     setSelectedEpisode(episode);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -48,9 +49,10 @@ export default function SeriesView({ media }: { media: any }) {
             </Button>
           </div>
 
-          <VideoPlayer
+           <VideoPlayer
             src={selectedEpisode.file}
             title={`${media.title} - ${selectedEpisode.title}`}
+            mediaId={`${media.slug}_${selectedEpisode.seasonNumber}_${selectedEpisode.number}`}
           />
         </div>
       )}
@@ -171,7 +173,7 @@ export default function SeriesView({ media }: { media: any }) {
           )}
 
           {/* Cast */}
-          {media.actors?.length > 0 && (
+          {media.actors && media.actors.length > 0 && (
             <div className="mb-10">
               <h2 className="text-xl sm:text-2xl font-semibold mb-4 flex items-center gap-2">
                 <Users className="h-5 w-5" />
@@ -196,7 +198,7 @@ export default function SeriesView({ media }: { media: any }) {
             </h2>
 
             <div className="space-y-8">
-              {media.seasons.map((season: any) => (
+              {media.seasons.map((season: SeasonInfo) => (
                 <Card key={season.number}>
                   <CardContent className="p-5 sm:p-6">
                     <h3 className="text-xl sm:text-2xl font-semibold mb-4">
@@ -204,7 +206,7 @@ export default function SeriesView({ media }: { media: any }) {
                     </h3>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {season.episodes.map((episode: any) => (
+                      {season.episodes.map((episode: EpisodeInfo) => (
                         <Card
                           key={episode.number}
                           className="hover:border-primary transition-colors"

@@ -7,11 +7,14 @@ interface VideoPlayerProps {
   src: string;
   poster?: string;
   title: string;
+  mediaId?: string;
 }
 
-export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
+export default function VideoPlayer({ src, poster, title, mediaId }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const storageKey = mediaId ?? title;
 
   const [isDesktop, setIsDesktop] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -23,6 +26,7 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
   const [showPlayPauseIcon, setShowPlayPauseIcon] = useState(false);
   const [isInactive, setIsInactive] = useState(false);
   const [showCursor, setShowCursor] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
   const cursorTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -42,8 +46,8 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
     const v = videoRef.current;
     if (!v) return;
 
-    const t = localStorage.getItem(`progress_${title}`);
-    const vol = localStorage.getItem(`volume_${title}`);
+    const t = localStorage.getItem(`progress_${storageKey}`);
+    const vol = localStorage.getItem(`volume_${storageKey}`);
 
     if (t) v.currentTime = Number(t);
     if (vol) {
@@ -51,7 +55,7 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
       v.volume = volNum;
       setVolume(volNum);
     }
-  }, [title]);
+  }, [storageKey]);
 
   /* ===== Eventos video ===== */
   useEffect(() => {
@@ -60,25 +64,38 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
 
     const onTime = () => {
       setCurrentTime(v.currentTime);
-      localStorage.setItem(`progress_${title}`, v.currentTime.toString());
+      localStorage.setItem(`progress_${storageKey}`, v.currentTime.toString());
     };
 
     const onLoaded = () => setDuration(v.duration);
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
+    const onError = () => {
+      // Map media error codes to user-friendly messages
+      const code = v.error?.code;
+      const messages: Record<number, string> = {
+        1: "Media loading was aborted.",
+        2: "Media decoding failed — the file may be corrupted or unsupported.",
+        4: "Media source is not supported or could not be loaded.",
+      };
+      const msg = code && messages[code] ? messages[code] : "Could not load this media.";
+      setError(msg);
+    };
 
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("loadedmetadata", onLoaded);
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
+    v.addEventListener("error", onError);
 
     return () => {
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("loadedmetadata", onLoaded);
       v.removeEventListener("play", onPlay);
       v.removeEventListener("pause", onPause);
+      v.removeEventListener("error", onError);
     };
-  }, [title, src]);
+  }, [storageKey, src]);
 
   // When the source changes, reset timers/state and try to reload/play the new source
   useEffect(() => {
@@ -89,6 +106,7 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
     setCurrentTime(0);
     setDuration(0);
     setIsPlaying(false);
+    setError(null);
 
     // Attempt to load the new source
     try {
@@ -244,16 +262,17 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
     const newVol = Math.min(1, Math.max(0, volume + delta));
     setVolume(newVol);
     videoRef.current.volume = newVol;
-    localStorage.setItem(`volume_${title}`, newVol.toString());
+    localStorage.setItem(`volume_${storageKey}`, newVol.toString());
   };
 
   const fullscreen = () => {
-    const video = videoRef.current as any;
-    const container = containerRef.current as any;
+    const video = videoRef.current;
+    const container = containerRef.current;
     if (!video || !container) return;
 
-    if (video.webkitEnterFullscreen) {
-      video.webkitEnterFullscreen();
+    // webkitEnterFullscreen is WebKit-specific (iOS Safari)
+    if ("webkitEnterFullscreen" in video && typeof video.webkitEnterFullscreen === "function") {
+      (video as HTMLVideoElement & { webkitEnterFullscreen: () => void }).webkitEnterFullscreen();
       return;
     }
 
@@ -265,6 +284,12 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
   };
 
   const handleVideoClick = () => {
+    if (error) {
+      setError(null);
+      const v = videoRef.current;
+      if (v) v.load();
+      return;
+    }
     if (isDesktop) {
       if (clickTimer) {
         clearTimeout(clickTimer);
@@ -329,6 +354,30 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
             height={80}
             className="w-20 h-20"
           />
+        </div>
+      )}
+
+      {error && (
+        <div
+          onClick={handleVideoClick}
+          className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/85 text-center px-6"
+        >
+          <div className="rounded-full bg-destructive/20 p-4 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-destructive">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <p className="text-white text-lg font-semibold mb-1">Could not play media</p>
+          <p className="text-white/70 text-sm mb-4">{error}</p>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setError(null); const v = videoRef.current; if (v) v.load(); }}
+            className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary/90"
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -407,7 +456,7 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
                 >
                   <Image
                     src="/icons/minus-5-seconds.png"
-                    alt="Retroceder 5 segundos"
+                    alt="Rewind 5 seconds"
                     width={24}
                     height={24}
                   />
@@ -419,7 +468,7 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
                 >
                   <Image
                     src="/icons/plus-5-seconds.png"
-                    alt="Avanzar 5 segundos"
+                    alt="Fast forward 5 seconds"
                     width={24}
                     height={24}
                   />

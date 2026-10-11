@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PlusCircle, Trash2, X } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import ConfirmDialog from "@/components/ui/confirm-dialog";
 
 interface MediaItemForModal {
   folderName: string;
@@ -45,6 +46,7 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
 
   const [mounted, setMounted] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const isEditing = Boolean(itemToEdit);
   const toast = useToast();
@@ -75,11 +77,15 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
       setIsClosing(false);
       resetForm(itemToEdit);
     } else if (mounted) {
+      // Abort any in-progress upload before starting the close animation
+      if (uploading && abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
       setIsClosing(true);
       const t = window.setTimeout(() => setMounted(false), 260);
       return () => window.clearTimeout(t);
     }
-  }, [open, itemToEdit]);
+  }, [open, itemToEdit, uploading]);
 
   if (!mounted) return null;
 
@@ -139,16 +145,22 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
 
   async function handleDelete() {
     if (!itemToEdit) return;
-    const confirmed = window.confirm(`Remove "${itemToEdit.folderName}" from your collection?`);
-    if (!confirmed) return;
+    setShowConfirm(true);
+  }
+
+  async function confirmDelete() {
+    if (!itemToEdit) return;
+    const folderName = itemToEdit.folderName;
+    const title = itemToEdit.title;
+    setShowConfirm(false);
 
     try {
-      const response = await fetch(`/api/media?folderName=${encodeURIComponent(itemToEdit.folderName)}`, { method: "DELETE" });
+      const response = await fetch(`/api/media?folderName=${encodeURIComponent(folderName)}`, { method: "DELETE" });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
         throw new Error(data?.error || "Unable to remove media");
       }
-      toast.show({ title: "Removed", description: `${itemToEdit.title} was removed.`, variant: "success" });
+      toast.show({ title: "Removed", description: `${title} was removed.`, variant: "success" });
       onSaved?.();
       onClose();
     } catch (error) {
@@ -177,6 +189,7 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
     const shouldReplaceMedia = isEditing && mediaType === "movie" && Boolean(movieFile);
 
     const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    let uploadSessionId = "";
     const buildHeaders = (fileName: string, chunkIndex: number, totalChunks: number, filePath?: string) => {
       const headers = new Headers();
       headers.set("x-file-name", encodeURIComponent(fileName));
@@ -184,6 +197,8 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
       headers.set("x-total-chunks", String(totalChunks));
       headers.set("x-folder-name", encodeURIComponent(normalizedFolder));
       if (filePath) headers.set("x-file-path", encodeURIComponent(filePath));
+      if (shouldReplaceMedia) headers.set("x-replace-media", "true");
+      if (uploadSessionId) headers.set("x-upload-id", uploadSessionId);
       return headers;
     };
 
@@ -283,6 +298,7 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
     setUploading(true);
     setUploadProgress(0);
     abortControllerRef.current = new AbortController();
+    uploadSessionId = crypto.randomUUID();
 
     try {
       const metadataResponse = await fetch("/api/upload", {
@@ -328,7 +344,7 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center ${isClosing ? "pointer-events-none" : ""}`}>
-      <div className={`absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity ${isClosing ? "opacity-0" : "opacity-100"}`} onClick={() => { if (!uploading) onClose(); }} />
+      <div className={`absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity ${isClosing ? "opacity-0" : "opacity-100"}`} onClick={() => { if (!uploading) onClose(); else abortControllerRef.current?.abort(); }} />
 
       <form onSubmit={handleSubmit} className="relative z-10 w-full max-w-3xl p-4">
         <Card className={`h-full max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl transition-all duration-300 ${isClosing ? "scale-95 opacity-0" : "scale-100 opacity-100"}`}>
@@ -340,7 +356,7 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
                 <CardDescription>{isEditing ? "Update the current movie or series details and files." : "Add a movie or series to your local collection"}</CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+                <Button variant="ghost" size="icon" onClick={() => { if (!uploading) onClose(); else abortControllerRef.current?.abort(); }} aria-label="Close">
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -530,6 +546,17 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
           </div>
         </Card>
       </form>
+
+      <ConfirmDialog
+        open={showConfirm}
+        title="Remove media"
+        description={itemToEdit ? `Remove "${itemToEdit.title}" from your collection? This action cannot be undone.` : ""}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={confirmDelete}
+        onCancel={() => setShowConfirm(false)}
+      />
     </div>
   );
 }

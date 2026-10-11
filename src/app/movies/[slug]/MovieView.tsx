@@ -4,14 +4,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import VideoPlayer from "@/app/components/VideoPlayer";
 import MovieControls from "@/app/components/MovieControls";
 import { Film, Users, Calendar, Clock, Star } from "lucide-react";
+import type { MovieDetail } from "@/types/media";
 
-export default function MovieView({ media }: { media: any }) {
+export default function MovieView({ media }: { media: MovieDetail }) {
   return (
     <>
       <div className="mb-8">
         <VideoPlayer
           src={media.video}
           title={media.title}
+          mediaId={media.slug}
         />
       </div>
 

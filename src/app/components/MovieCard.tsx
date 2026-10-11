@@ -3,20 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Pencil, Play, Trash2 } from "lucide-react";
-
-interface MediaItem {
-  id: string;
-  title: string;
-  year?: string;
-  cover: string;
-  folderName: string;
-  type: "movie" | "series";
-}
+import type { MediaCardItem } from "@/types/media";
 
 interface MovieCardProps {
-  item: MediaItem;
-  onEdit: (item: MediaItem) => void;
-  onDelete: (item: MediaItem) => void;
+  item: MediaCardItem;
+  onEdit: (item: MediaCardItem) => void;
+  onDelete: (item: MediaCardItem) => void;
 }
 
 export default function MovieCard({ item, onEdit, onDelete }: MovieCardProps) {

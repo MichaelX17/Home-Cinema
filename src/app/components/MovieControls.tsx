@@ -8,10 +8,13 @@ interface MovieControlsProps {
   movie: {
     title: string;
     video: string;
+    slug?: string;
   };
 }
 
 const MovieControls: FC<MovieControlsProps> = ({ movie }) => {
+  const storageKey = movie.slug ?? movie.title;
+
   return (
     <div className="p-4 rounded-lg bg-card border border-border mt-8">
       <h2 className="text-xl font-bold mb-4 text-primary">Playback Options</h2>
@@ -20,7 +23,7 @@ const MovieControls: FC<MovieControlsProps> = ({ movie }) => {
           className="icon-interactive"
           variant="outline"
           onClick={() => {
-            localStorage.removeItem(`progress_${movie.title}`);
+            localStorage.removeItem(`progress_${storageKey}`);
             window.location.reload();
           }}
         >

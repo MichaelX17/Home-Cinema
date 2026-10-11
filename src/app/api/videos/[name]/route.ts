@@ -1,4 +1,5 @@
 import fs from "fs";
+import fsPromises from "fs/promises";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -89,17 +90,39 @@ export async function GET(request: NextRequest, context: { params: Promise<{ nam
     const resolvedPath = path.resolve(filePath);
     const allowedBase = path.resolve(VIDEO_DIR);
 
-    if (!resolvedPath.startsWith(allowedBase)) {
-      return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+    // Resolve symlinks on both paths to prevent symlink-based path traversal (Issue 1.1)
+    let allowedBaseReal: string;
+    try {
+      allowedBaseReal = await fsPromises.realpath(allowedBase);
+    } catch {
+      return NextResponse.json({ error: "Media directory not found" }, { status: 404 });
     }
 
-    if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
+    let realPath: string;
+    try {
+      realPath = await fsPromises.realpath(resolvedPath);
+    } catch {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    const fileSize = fs.statSync(resolvedPath).size;
+    if (!realPath.startsWith(allowedBaseReal + path.sep)) {
+      return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+    }
+
+    let stat: fs.Stats;
+    try {
+      stat = await fsPromises.stat(realPath);
+    } catch {
+      return NextResponse.json({ error: "File not found" }, { status: 404 });
+    }
+
+    if (!stat.isFile()) {
+      return NextResponse.json({ error: "File not found" }, { status: 404 });
+    }
+
+    const fileSize = stat.size;
     const range = request.headers.get("range");
-    const contentType = getMimeType(resolvedPath);
+    const contentType = getMimeType(realPath);
 
     if (!range) {
       const headers = new Headers({
@@ -107,7 +130,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ nam
         "Content-Length": String(fileSize),
         "Accept-Ranges": "bytes",
       });
-      const stream = fs.createReadStream(resolvedPath);
+      const stream = fs.createReadStream(realPath);
       const body = createWebStreamFromNode(stream, request);
       return new NextResponse(body, { status: 200, headers });
     }
@@ -133,7 +156,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ nam
       "Content-Type": contentType,
     });
 
-    const stream = fs.createReadStream(resolvedPath, { start, end });
+    const stream = fs.createReadStream(realPath, { start, end });
     const body = createWebStreamFromNode(stream, request);
     return new NextResponse(body, { status: 206, headers });
   } catch (error) {

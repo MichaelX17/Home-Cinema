@@ -2,23 +2,12 @@
 
 import MovieCard from "./MovieCard";
 import { Tv } from "lucide-react";
-
-interface MediaItem {
-  id: string;
-  title: string;
-  year?: string;
-  duration?: string;
-  description?: string;
-  cover: string;
-  video?: string;
-  folderName: string;
-  type: "movie" | "series";
-}
+import type { MediaCardItem } from "@/types/media";
 
 interface MovieCatalogProps {
-  mediaItems: MediaItem[];
-  onEdit: (item: MediaItem) => void;
-  onDelete: (item: MediaItem) => void;
+  mediaItems: MediaCardItem[];
+  onEdit: (item: MediaCardItem) => void;
+  onDelete: (item: MediaCardItem) => void;
 }
 
 export default function MovieCatalog({ mediaItems, onEdit, onDelete }: MovieCatalogProps) {

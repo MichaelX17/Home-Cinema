@@ -6,30 +6,19 @@ import UploadModal from "./UploadModal";
 import MovieCatalog from "./MovieCatalog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-
-interface MediaItem {
-  id: string;
-  title: string;
-  year?: string;
-  duration?: string;
-  description?: string;
-  infoJson?: string;
-  seasons?: number[];
-  cover: string;
-  video?: string;
-  folderName: string;
-  type: "movie" | "series";
-}
+import ConfirmDialog from "@/components/ui/confirm-dialog";
+import type { MediaCatalogItem } from "@/types/media";
 
 export default function HomeClient() {
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [mediaItems, setMediaItems] = useState<MediaCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "movies" | "series">("all");
   const [sort, setSort] = useState<"a-z" | "z-a" | "newest" | "oldest">("a-z");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
+  const [editingItem, setEditingItem] = useState<MediaCatalogItem | null>(null);
+  const [confirmItem, setConfirmItem] = useState<MediaCatalogItem | null>(null);
 
   const loadMedia = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -42,9 +31,9 @@ export default function HomeClient() {
       const data = await response.json();
       setMediaItems(Array.isArray(data) ? data : []);
       setError(null);
-    } catch (error: any) {
-      if (error?.name === "AbortError") return;
-      setError("No se pudo cargar el catálogo. Recarga la página.");
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
+      setError("Could not load the catalog. Please reload the page.");
     } finally {
       setLoading(false);
     }
@@ -73,9 +62,9 @@ export default function HomeClient() {
       case "z-a":
         return b.title.localeCompare(a.title);
       case "newest":
-        return (b.year || "").localeCompare(a.year || "");
+        return String(b.year || "").localeCompare(String(a.year || ""));
       case "oldest":
-        return (a.year || "").localeCompare(b.year || "");
+        return String(a.year || "").localeCompare(String(b.year || ""));
       default:
         return 0;
     }
@@ -86,7 +75,7 @@ export default function HomeClient() {
     setShowUploadModal(true);
   };
 
-  const openEditModal = (item: MediaItem) => {
+  const openEditModal = (item: MediaCatalogItem) => {
     setEditingItem(item);
     setShowUploadModal(true);
   };
@@ -96,9 +85,14 @@ export default function HomeClient() {
     setEditingItem(null);
   };
 
-  const handleDelete = async (item: MediaItem) => {
-    const confirmed = window.confirm(`Remove ${item.title} from your collection?`);
-    if (!confirmed) return;
+  const handleDelete = async (item: MediaCatalogItem) => {
+    setConfirmItem(item);
+  };
+
+  const confirmDelete = async () => {
+    const item = confirmItem;
+    setConfirmItem(null);
+    if (!item) return;
 
     try {
       const response = await fetch(`/api/media?folderName=${encodeURIComponent(item.folderName)}`, { method: "DELETE" });
@@ -248,6 +242,17 @@ export default function HomeClient() {
       </div>
 
       <UploadModal open={showUploadModal} onClose={closeModal} itemToEdit={editingItem} onSaved={() => void loadMedia()} />
+
+      <ConfirmDialog
+        open={confirmItem !== null}
+        title="Remove media"
+        description={confirmItem ? `Remove "${confirmItem.title}" from your collection? This action cannot be undone.` : ""}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmItem(null)}
+      />
     </div>
   );
 }

@@ -17,7 +17,7 @@ interface MediaPageProps {
 export default async function MediaPage({ params }: MediaPageProps) {
   // Desenvolver la Promise params
   const { slug } = await params;
-  const media = getMedia(slug);
+  const media = await getMedia(slug);
 
   if (!media) {
     notFound();

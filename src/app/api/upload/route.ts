@@ -1,10 +1,21 @@
-import fs from "fs";
+import fsPromises from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
+import { CATALOG_CACHE_KEY, invalidate } from "@/lib/media-cache";
 
 export const runtime = "nodejs";
 
 const MEDIA_STORAGE_DIR = path.join(process.cwd(), "../movies-files");
+
+async function fsExists(filePath: string): Promise<boolean> {
+  try {
+    await fsPromises.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 
 const mimeToExt: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -62,28 +73,28 @@ const sanitizeRelativePath = (rawPath: string) => {
   return segments.join(path.sep);
 };
 
-const removeMatchingEntries = (directoryPath: string, predicate: (entryName: string) => boolean) => {
-  if (!fs.existsSync(directoryPath)) return;
+const removeMatchingEntries = async (directoryPath: string, predicate: (entryName: string) => boolean) => {
+  if (!(await fsExists(directoryPath))) return;
 
-  for (const entry of fs.readdirSync(directoryPath)) {
-    const entryPath = path.join(directoryPath, entry);
+  for (const entry of await fsPromises.readdir(directoryPath)) {
     if (predicate(entry)) {
-      fs.rmSync(entryPath, { recursive: true, force: true });
+      await fsPromises.rm(path.join(directoryPath, entry), { recursive: true, force: true });
     }
   }
 };
 
-const removeExistingImages = (directoryPath: string) => {
-  removeMatchingEntries(directoryPath, (entryName) => /\.(jpg|jpeg|png|webp)$/i.test(entryName));
+const removeExistingImages = (directoryPath: string): Promise<void> => {
+  return removeMatchingEntries(directoryPath, (entryName) => /\.(jpg|jpeg|png|webp)$/i.test(entryName));
 };
 
-const removeExistingVideoFiles = (directoryPath: string) => {
-  removeMatchingEntries(directoryPath, (entryName) => /\.(mp4|mkv|avi|mov|webm)$/i.test(entryName));
+const removeExistingVideoFiles = (directoryPath: string): Promise<void> => {
+  return removeMatchingEntries(directoryPath, (entryName) => /\.(mp4|mkv|avi|mov|webm)$/i.test(entryName));
 };
 
-const removeExistingSeriesMedia = (directoryPath: string) => {
-  removeMatchingEntries(directoryPath, (entryName) => entryName.toLowerCase().includes("season"));
-  removeExistingVideoFiles(directoryPath);
+const removeExistingSeriesMedia = (directoryPath: string): Promise<void> => {
+  return removeMatchingEntries(directoryPath, (entryName) =>
+    entryName.toLowerCase().includes("season")
+  ).then(() => removeExistingVideoFiles(directoryPath));
 };
 
 const handleChunkUpload = async (req: Request) => {
@@ -91,6 +102,7 @@ const handleChunkUpload = async (req: Request) => {
   const chunkIndexHeader = req.headers.get("x-chunk-index");
   const totalChunksHeader = req.headers.get("x-total-chunks");
   const rawFolderHeader = req.headers.get("x-folder-name");
+  const uploadIdHeader = req.headers.get("x-upload-id");
 
   if (!rawFileNameHeader || chunkIndexHeader === null || totalChunksHeader === null) {
     return NextResponse.json({ ok: false, error: "Missing chunk headers x-file-name, x-chunk-index or x-total-chunks." }, { status: 400 });
@@ -105,7 +117,7 @@ const handleChunkUpload = async (req: Request) => {
   const fileNameHeader = decodeURIComponent(rawFileNameHeader);
   const folderName = rawFolderHeader ? safeFolderName(decodeURIComponent(rawFolderHeader)) : "";
   const targetDir = folderName ? path.join(MEDIA_STORAGE_DIR, folderName) : MEDIA_STORAGE_DIR;
-  fs.mkdirSync(targetDir, { recursive: true });
+  await fsPromises.mkdir(targetDir, { recursive: true });
 
   const rawFilePathHeader = req.headers.get("x-file-path");
   const filePathHeader = rawFilePathHeader ? decodeURIComponent(rawFilePathHeader) : fileNameHeader;
@@ -115,25 +127,50 @@ const handleChunkUpload = async (req: Request) => {
   }
 
   const targetFilePath = path.join(targetDir, safeRelativePath);
-  fs.mkdirSync(path.dirname(targetFilePath), { recursive: true });
+  await fsPromises.mkdir(path.dirname(targetFilePath), { recursive: true });
 
-  const tempFilePath = `${targetFilePath}.part`;
+  // Use unique temp file name per upload session to prevent concurrent upload
+  // race conditions (Issue 2.2)
+  const uploadId = uploadIdHeader || crypto.randomUUID();
+  const tempFilePath = `${targetFilePath}.${uploadId}.part`;
   const finalFilePath = targetFilePath;
 
   try {
-    if (chunkIndex === 0 && fs.existsSync(tempFilePath)) {
-      fs.unlinkSync(tempFilePath);
+    if (chunkIndex === 0 && (await fsExists(tempFilePath))) {
+      await fsPromises.unlink(tempFilePath);
     }
 
     const rawBody = await req.arrayBuffer();
     const chunkBuffer = Buffer.from(rawBody);
-    fs.writeFileSync(tempFilePath, chunkBuffer, { flag: "a" });
+    await fsPromises.appendFile(tempFilePath, chunkBuffer);
 
     if (chunkIndex === totalChunks - 1) {
-      if (fs.existsSync(finalFilePath)) {
-        fs.unlinkSync(finalFilePath);
+      // Atomic replace: only delete the existing file after temp is complete
+      if (await fsExists(finalFilePath)) {
+        await fsPromises.unlink(finalFilePath);
       }
-      fs.renameSync(tempFilePath, finalFilePath);
+      await fsPromises.rename(tempFilePath, finalFilePath);
+
+      // Clean up old video files that are not the one just uploaded (Issue 2.3)
+      const replaceMedia = req.headers.get("x-replace-media") === "true";
+      if (replaceMedia) {
+        const targetDir = path.dirname(targetFilePath);
+        try {
+          const dirEntries = await fsPromises.readdir(targetDir);
+          for (const entry of dirEntries) {
+            const entryPath = path.join(targetDir, entry);
+            if (entryPath === finalFilePath) continue;
+            if (/\.(mp4|mkv|avi|mov|webm)$/i.test(entry)) {
+              await fsPromises.rm(entryPath, { force: true });
+            }
+          }
+        } catch (cleanupErr) {
+          console.error("Cleanup of old video files failed", cleanupErr);
+        }
+      }
+
+      // Invalidate catalog cache so the next GET reflects the new file
+      invalidate(CATALOG_CACHE_KEY);
     }
 
     return NextResponse.json({ ok: true });
@@ -149,7 +186,7 @@ const handleMultipartUpload = async (req: Request) => {
     return NextResponse.json({ ok: false, error: "Content-Type must be multipart/form-data." }, { status: 400 });
   }
 
-  fs.mkdirSync(MEDIA_STORAGE_DIR, { recursive: true });
+  await fsPromises.mkdir(MEDIA_STORAGE_DIR, { recursive: true });
 
   const formData = await req.formData();
   const fields: Record<string, string> = {};
@@ -157,15 +194,15 @@ const handleMultipartUpload = async (req: Request) => {
   let folderName = `media-${Date.now()}`;
   let targetMediaDir = "";
 
-  const createMediaDir = (rawFolderName: unknown) => {
+  const createMediaDir = async (rawFolderName: unknown) => {
     folderName = safeFolderName(rawFolderName);
     targetMediaDir = path.join(MEDIA_STORAGE_DIR, folderName);
-    fs.mkdirSync(targetMediaDir, { recursive: true });
+    await fsPromises.mkdir(targetMediaDir, { recursive: true });
   };
 
   const appendFileFromFormEntry = async (entry: File, destPath: string) => {
     const buffer = Buffer.from(await entry.arrayBuffer());
-    fs.writeFileSync(destPath, buffer);
+    await fsPromises.writeFile(destPath, buffer);
   };
 
   try {
@@ -181,8 +218,6 @@ const handleMultipartUpload = async (req: Request) => {
     }
 
     const mode = fields.mode === "edit" ? "edit" : "create";
-    const mediaType = fields.mediaType === "series" ? "series" : "movie";
-    const replaceMedia = fields.replaceMedia === "true";
     const existingFolder = fields.existingFolder || "";
 
     if (mode === "edit") {
@@ -191,30 +226,31 @@ const handleMultipartUpload = async (req: Request) => {
       const targetFolder = safeFolderName(fields.folderName || existingFolder || sourceFolder);
       const resolvedTargetDir = path.join(MEDIA_STORAGE_DIR, targetFolder);
 
-      if (fs.existsSync(sourceDir) && sourceFolder !== targetFolder) {
-        if (fs.existsSync(resolvedTargetDir)) {
+      if ((await fsExists(sourceDir)) && sourceFolder !== targetFolder) {
+        if (await fsExists(resolvedTargetDir)) {
           throw new Error("Target folder already exists");
         }
-        fs.renameSync(sourceDir, resolvedTargetDir);
+        await fsPromises.rename(sourceDir, resolvedTargetDir);
       }
 
-      targetMediaDir = fs.existsSync(resolvedTargetDir) ? resolvedTargetDir : sourceDir;
-      fs.mkdirSync(targetMediaDir, { recursive: true });
+      targetMediaDir = (await fsExists(resolvedTargetDir)) ? resolvedTargetDir : sourceDir;
+      await fsPromises.mkdir(targetMediaDir, { recursive: true });
 
-      if (replaceMedia && mediaType !== "series") {
-        removeExistingVideoFiles(targetMediaDir);
-      }
+      // Note: old video files are not deleted here to prevent data loss if the
+      // subsequent chunked upload fails. Cleanup is deferred to handleChunkUpload
+      // which deletes old videos only after the new video temp file is complete
+      // and ready to be atomically renamed (Issue 2.3).
     } else {
-      createMediaDir(fields.folderName || folderName);
+      await createMediaDir(fields.folderName || folderName);
     }
 
     if (!targetMediaDir) {
-      createMediaDir(fields.folderName || folderName);
+      await createMediaDir(fields.folderName || folderName);
     }
 
     for (const { fieldName, file } of uploadedFiles) {
       if (mode === "edit" && fieldName === "cover") {
-        removeExistingImages(targetMediaDir);
+        await removeExistingImages(targetMediaDir);
       }
 
       const rawFilename = file.name || `${fieldName}-${Date.now()}`;
@@ -225,8 +261,11 @@ const handleMultipartUpload = async (req: Request) => {
 
     if (fields.info) {
       const infoPath = path.join(targetMediaDir, "info.json");
-      fs.writeFileSync(infoPath, fields.info, "utf-8");
+      await fsPromises.writeFile(infoPath, fields.info, "utf-8");
     }
+
+    // Invalidate catalog cache so the next GET reflects the new/updated media
+    invalidate(CATALOG_CACHE_KEY);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
