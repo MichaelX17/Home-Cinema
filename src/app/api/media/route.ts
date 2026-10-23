@@ -16,6 +16,21 @@ export const dynamic = "force-dynamic";
 
 const MEDIA_BASE_DIR = path.join(process.cwd(), "../movies-files");
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-folder-name, x-upload-id",
+  "Access-Control-Allow-Credentials": "true",
+  "Vary": "Origin",
+} as const;
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: corsHeaders,
+  });
+}
+
 export async function GET() {
   try {
     // Return cached catalog if still fresh (Issue 12: 5.3)

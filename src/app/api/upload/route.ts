@@ -8,6 +8,27 @@ export const runtime = "nodejs";
 
 const MEDIA_STORAGE_DIR = path.join(process.cwd(), "../movies-files");
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": [
+    "Content-Type",
+    "Authorization",
+    "x-file-name",
+    "x-chunk-index",
+    "x-total-chunks",
+    "x-folder-name",
+    "x-file-path",
+    "x-upload-id",
+    "x-replace-media",
+    "x-client-ip",
+    "x-forwarded-for",
+    "x-real-ip",
+  ].join(", "),
+  "Access-Control-Allow-Credentials": "true",
+  "Vary": "Origin",
+} as const;
+
 async function fsExists(filePath: string): Promise<boolean> {
   try {
     await fsPromises.access(filePath);
@@ -291,6 +312,13 @@ const handleMultipartUpload = async (req: Request) => {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
 };
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: corsHeaders,
+  });
+}
 
 export async function POST(req: Request) {
   if (req.headers.has("x-file-name")) {
