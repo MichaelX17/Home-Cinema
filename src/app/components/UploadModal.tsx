@@ -242,6 +242,7 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
     };
 
     let uploadedBytesTotal = 0;
+    let totalBytes = 0;
 
     const uploadFileInChunks = async (file: File, filePath?: string) => {
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
@@ -294,9 +295,10 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
       });
     }
 
-    const totalBytes = uploadFiles.reduce((sum, item) => sum + item.file.size, 0);
-    setTotalEpisodes(uploadFiles.length);
-    setUploadedEpisodes(0);
+    setUploading(true);
+    setUploadProgress(0);
+    abortControllerRef.current = new AbortController();
+    uploadSessionId = crypto.randomUUID();
 
     try {
       const metadataResponse = await fetch("/api/upload", {
@@ -311,7 +313,7 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
         throw new Error(`Metadata upload failed: ${metadataError}`);
       }
 
-      const totalBytes = uploadFiles.reduce((sum, item) => sum + item.file.size, 0);
+      totalBytes = uploadFiles.reduce((sum, item) => sum + item.file.size, 0);
       setTotalEpisodes(uploadFiles.length);
       setUploadedEpisodes(0);
 
@@ -378,7 +380,7 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
         toast.show({ 
           title: isNetworkError ? "Network Issue" : "Upload Session", 
           description: errorMessage, 
-          variant: isNetworkError ? "error" : "warning" 
+          variant: isNetworkError ? "error" : "default" 
         });
       } else {
         toast.show({ title: "Error", description: errorMessage, variant: "error" });
@@ -387,6 +389,7 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
       setUploading(false);
       abortControllerRef.current = null;
     }
+  }
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center ${isClosing ? "pointer-events-none" : ""}`}>

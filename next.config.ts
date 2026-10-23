@@ -49,8 +49,13 @@ const nextConfig: NextConfig = {
   // This ensures uploaded media can be accessed from remote PCs
   // Note: In production, use a proper network storage solution
   images: {
-    domains: ["localhost"],
     remotePatterns: [
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "3000",
+        pathname: "/api/videos/**",
+      },
       {
         protocol: "http",
         hostname: "192.168.*.*",

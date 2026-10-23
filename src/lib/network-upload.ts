@@ -53,7 +53,7 @@ export const generateUploadSession = (headers: Headers, folderName: string): {
     expiresAt: Date.now() + SESSION_TTL,
     folderName,
     uploadId,
-    host: headers.get("host"),
+    host: headers.get("host") ?? undefined,
     clientIP,
   });
 
