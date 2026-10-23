@@ -76,7 +76,10 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
       setMounted(true);
       setIsClosing(false);
       resetForm(itemToEdit);
-    } else if (mounted) {
+      return;
+    }
+
+    if (mounted) {
       // Abort any in-progress upload before starting the close animation
       if (uploading && abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -85,7 +88,7 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
       const t = window.setTimeout(() => setMounted(false), 260);
       return () => window.clearTimeout(t);
     }
-  }, [open, itemToEdit, uploading]);
+  }, [open, itemToEdit]);
 
   if (!mounted) return null;
 
