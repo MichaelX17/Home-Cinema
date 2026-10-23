@@ -199,6 +199,9 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
       if (filePath) headers.set("x-file-path", encodeURIComponent(filePath));
       if (shouldReplaceMedia) headers.set("x-replace-media", "true");
       if (uploadSessionId) headers.set("x-upload-id", uploadSessionId);
+      // Add client identification headers for cross-PC upload tracking
+      headers.set("x-client-ip", "unknown"); // Will be set by server-side middleware
+      headers.set("host", window.location.host);
       return headers;
     };
 
@@ -295,11 +298,6 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
     setTotalEpisodes(uploadFiles.length);
     setUploadedEpisodes(0);
 
-    setUploading(true);
-    setUploadProgress(0);
-    abortControllerRef.current = new AbortController();
-    uploadSessionId = crypto.randomUUID();
-
     try {
       const metadataResponse = await fetch("/api/upload", {
         method: "POST",
@@ -333,14 +331,62 @@ export default function UploadModal({ open, onClose, itemToEdit, onSaved }: Uplo
       onSaved?.();
       onClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Upload failed";
-      setErrors([message]);
-      toast.show({ title: "Error", description: message, variant: "error" });
+      // Enhanced error handling for cross-PC network issues
+      let errorMessage = "Upload failed";
+      let isNetworkError = false;
+      let isSessionError = false;
+
+      if (error instanceof Error) {
+        const errorMsg = error.message.toLowerCase();
+        
+        // Network-related error detection
+        if (errorMsg.includes("network") || 
+            errorMsg.includes("connection") ||
+            errorMsg.includes("timeout") ||
+            errorMsg.includes("cors") ||
+            errorMsg.includes("abort")) {
+          isNetworkError = true;
+          errorMessage = "Network error during upload. Please check your connection and try again.";
+          if (errorMsg.includes("timeout")) {
+            errorMessage += " Upload may be slow due to network conditions or server load.";
+          }
+        }
+        
+        // Session-related error detection (cross-PC session tracking)
+        else if (errorMsg.includes("session") ||
+                 errorMsg.includes("uploadid") ||
+                 errorMsg.includes("upload session")) {
+          isSessionError = true;
+          errorMessage = "Upload session issue detected. This may be due to cross-PC upload tracking. Please try restarting the upload.";
+        }
+        
+        // Server response errors
+        else if (errorMsg.startsWith("4") || errorMsg.startsWith("5")) {
+          errorMessage = `Server error: ${error.message}`;
+        }
+        
+        // Fallback
+        else {
+          errorMessage = error.message;
+        }
+      }
+
+      setErrors([errorMessage]);
+      
+      // Show enhanced toast notifications for network-related errors
+      if (isNetworkError || isSessionError) {
+        toast.show({ 
+          title: isNetworkError ? "Network Issue" : "Upload Session", 
+          description: errorMessage, 
+          variant: isNetworkError ? "error" : "warning" 
+        });
+      } else {
+        toast.show({ title: "Error", description: errorMessage, variant: "error" });
+      }
     } finally {
       setUploading(false);
       abortControllerRef.current = null;
     }
-  }
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center ${isClosing ? "pointer-events-none" : ""}`}>

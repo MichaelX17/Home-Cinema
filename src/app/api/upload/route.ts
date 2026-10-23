@@ -2,6 +2,7 @@ import fsPromises from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
 import { CATALOG_CACHE_KEY, invalidate } from "@/lib/media-cache";
+import { generateUploadSession, validateUploadSession, refreshUploadSession } from "@/lib/network-upload";
 
 export const runtime = "nodejs";
 
@@ -116,8 +117,24 @@ const handleChunkUpload = async (req: Request) => {
 
   const fileNameHeader = decodeURIComponent(rawFileNameHeader);
   const folderName = rawFolderHeader ? safeFolderName(decodeURIComponent(rawFolderHeader)) : "";
-  const targetDir = folderName ? path.join(MEDIA_STORAGE_DIR, folderName) : MEDIA_STORAGE_DIR;
-  await fsPromises.mkdir(targetDir, { recursive: true });
+
+  // Create server-side tracked upload session for cross-PC support
+  let uploadId = uploadIdHeader;
+  if (!uploadId) {
+    // Generate a new session if none provided (for clients that don't send the header)
+    const { uploadId: newUploadId } = generateUploadSession(req.headers, folderName);
+    uploadId = newUploadId;
+  }
+
+  // Validate the upload session (server-side tracking for cross-PC compatibility)
+  if (!validateUploadSession(uploadId, req.headers)) {
+    // If session validation fails, generate a new one
+    const { uploadId: newUploadId } = generateUploadSession(req.headers, folderName);
+    uploadId = newUploadId;
+  }
+
+  // Refresh session on activity to keep it alive
+  refreshUploadSession(uploadId);
 
   const rawFilePathHeader = req.headers.get("x-file-path");
   const filePathHeader = rawFilePathHeader ? decodeURIComponent(rawFilePathHeader) : fileNameHeader;
@@ -126,12 +143,13 @@ const handleChunkUpload = async (req: Request) => {
     return NextResponse.json({ ok: false, error: "Invalid file path." }, { status: 400 });
   }
 
+  const targetDir = folderName ? path.join(MEDIA_STORAGE_DIR, folderName) : MEDIA_STORAGE_DIR;
+  await fsPromises.mkdir(targetDir, { recursive: true });
+
   const targetFilePath = path.join(targetDir, safeRelativePath);
   await fsPromises.mkdir(path.dirname(targetFilePath), { recursive: true });
 
-  // Use unique temp file name per upload session to prevent concurrent upload
-  // race conditions (Issue 2.2)
-  const uploadId = uploadIdHeader || crypto.randomUUID();
+  // Use the validated upload ID in the temp file name
   const tempFilePath = `${targetFilePath}.${uploadId}.part`;
   const finalFilePath = targetFilePath;
 
@@ -173,7 +191,7 @@ const handleChunkUpload = async (req: Request) => {
       invalidate(CATALOG_CACHE_KEY);
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, uploadId });
   } catch (error) {
     console.error("Chunk upload failed", error);
     return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });

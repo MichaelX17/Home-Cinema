@@ -62,14 +62,25 @@ Based on analysis of the codebase, the following issues, potential bugs, and are
 - **Recommendation**: Parse episode numbers from filenames when possible (common patterns: S01E01, 01, episode-01).
 
 ### 2.6 Missing Video File Fallback Logic
-- **Location**: `src/app/api/media/route.ts` (lines ~40-80)
+: - **Location**: `src/app/api/media/route.ts` (lines ~40-80)
 - **Issue**: For movies, if no video file found (neither explicit video/movie nor fallback), item is filtered out (`return null`). But for series in the detail view, seasons/episodes are discovered separately. Inconsistent behavior.
 - **Impact**: A series folder might appear in catalog if it has cover but no episodes? Let us look - in media API, when type is movie and no effectiveVideoFile, returns null. When type is series, it doesn't have the same check - it will proceed and build item with video undefined. That seems intentional.
 - **Potential Issue**: Empty series (no season folders/episodes) will appear in catalog with `seasons: []`, `totalEpisodes: 0`. Clicking it leads to SeriesView showing empty seasons list - poor UX.
 
----
+### 2.7 Cross-PC Upload Network Issues
+- **Location**: `src/app/api/upload/route.ts`, `src/app/api/media/route.ts`
+- **Issue**: Upload functionality works when running on the same PC but fails when accessed from another PC on the same local network. The upload content form gets cleaned up, preventing content upload from remote PCs.
+- **Root Cause**: Likely due to file system paths being relative to the host PC, CORS configuration issues, or session management that doesn't properly handle cross-origin/local network access. File uploads may be attempting to write to host-specific paths or session storage that isn't shared across devices.
+- **Impact**: Users cannot upload content from devices other than the host PC, limiting collaborative use and remote access within local networks.
+- **Recommendation**: 
+  1. Implement network-aware path resolution using absolute paths or network-shared storage
+  2. Configure CORS to allow cross-origin requests from local network devices
+  3. Use session tokens or server-side storage instead of client-side storage for upload sessions
+  4. Add proper error handling for network-related upload failures with clear UI feedback
 
-## 3. Error Handling & Robustness
+---
+ 
+ ## 3. Error Handling & Robustness
 
 ### 3.1 Silent Failures in Metadata Parsing
 - **Location**: `src/app/api/media/route.ts` (line ~60-70), `getMedia.ts` (line ~50-65)

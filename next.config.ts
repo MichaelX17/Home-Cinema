@@ -19,6 +19,53 @@ const nextConfig: NextConfig = {
     "192.168.*.*",
   ],
 
+  // 4. CORS configuration for cross-origin requests
+  // Allow API routes to be accessed from remote PCs on the same local network
+  // Note: This is for development only. In production, restrict to specific origins.
+  async headers() {
+    return [
+      {
+        source: "/api/(.*)/upload",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "POST, OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Content-Type, x-file-name, x-chunk-index, x-total-chunks, x-folder-name, x-upload-id, x-replace-media" },
+          { key: "Access-Control-Allow-Credentials", value: "true" },
+        ],
+      },
+      {
+        source: "/api/media",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET, DELETE, OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "*" },
+          { key: "Access-Control-Allow-Credentials", value: "true" },
+        ],
+      },
+    ];
+  },
+
+  // 5. Configure to serve static files from network-accessible location
+  // This ensures uploaded media can be accessed from remote PCs
+  // Note: In production, use a proper network storage solution
+  images: {
+    domains: ["localhost"],
+    remotePatterns: [
+      {
+        protocol: "http",
+        hostname: "192.168.*.*",
+        port: "3000",
+        pathname: "/api/videos/**",
+      },
+      {
+        protocol: "https",
+        hostname: "192.168.*.*",
+        port: "3000",
+        pathname: "/api/videos/**",
+      },
+    ],
+  },
+
 };
 
 export default nextConfig;
